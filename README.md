@@ -7,6 +7,46 @@ Personal collection of [phBot](https://www.elitepvpers.com/forum/sro-pserver-bot
 | Plugin | Description |
 | --- | --- |
 | [`xControl.py`](./xControl.py) | Control a party of bots using in-game chat. A designated leader types commands and every bot running this plugin reacts (start/stop, teleport, follow, equip, party chat, packet injection, and more). |
+| [`xMagicPop.py`](./xMagicPop.py) | Loop Magic Pop spins across your inventory. Auto-detects Magic Pop items, picks Flag/Devil/Angel × M/F, supports burst mode (delay = 0) or timed delay, cycle limit, and a live status panel. |
+
+---
+
+## xMagicPop
+
+Magic Pop spinner. Sends Magic Pop "play" packets (`C->S 0x7118`) for every Magic Pop item in your inventory, in a loop.
+
+### Install
+
+1. Copy `xMagicPop.py` into your phBot `Plugins/` folder.
+2. Restart phBot (or use **Reload Plugins**).
+3. Open the **xMagicPop** tab.
+
+### Usage
+
+1. **Magic Pop Type** — pick the booth you're at: `Flag Male / Flag Female / Devil Male / Devil Female / Angel Male / Angel Female`.
+2. **Delay (sec)** — `0` means **burst mode** (~15 sends per event tick, as fast as the script engine). Set a positive number for a steady one-per-interval send.
+3. **Stop after cycles** — `0` = forever, otherwise stops after N full passes over your inventory.
+4. **Only play on Magic Pop items** — when checked (default), the loop skips empty slots and any non-Magic-Pop items. Matches inventory items whose `servername` contains `MAGIC_POP`.
+5. Click **Refresh Inventory** if you just grabbed/dropped items, then **START**. The right-hand list shows every slot in the Magic Pop range; rows marked `[POP]` are the ones that will be played.
+
+### Buttons
+
+| Button | Action |
+| --- | --- |
+| `START` | Start the loop (auto-refreshes inventory first). |
+| `STOP` | Stop the loop. |
+| `SEND ONE` | Send a single packet for the current slot. |
+| `RESET` | Zero attempts / cycles / current slot. |
+| `Refresh Inventory` | Re-read inventory and rebuild the slot list. |
+
+### Packet format
+
+```
+opcode  : 0x7118
+payload : F5 05 00 00  <type:1>  00 00 00  <slot:1>  00
+```
+
+`<type>` is `01/04/05/06/07/08` (Flag M/F, Devil M/F, Angel M/F). `<slot>` is the inventory slot byte.
 
 ---
 
