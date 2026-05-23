@@ -73,7 +73,7 @@ except Exception:
     pass
 
 QtBind.createLabel(gui, 'Delay (sec):', 12, 60)
-txt_delay = QtBind.createLineEdit(gui, '0.5', 130, 57, 70, 22)
+txt_delay = QtBind.createLineEdit(gui, '0', 130, 57, 70, 22)
 
 QtBind.createLabel(gui, 'Stop after cycles:', 12, 88)
 txt_max_cycles = QtBind.createLineEdit(gui, '0', 130, 85, 70, 22)
