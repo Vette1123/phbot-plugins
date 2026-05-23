@@ -7,7 +7,7 @@ Personal collection of [phBot](https://www.elitepvpers.com/forum/sro-pserver-bot
 | Plugin | Description |
 | --- | --- |
 | [`xControl.py`](./xControl.py) | Control a party of bots using in-game chat. A designated leader types commands and every bot running this plugin reacts (start/stop, teleport, follow, equip, party chat, packet injection, and more). |
-| [`xMagicPop.py`](./xMagicPop.py) | Loop Magic Pop spins across your inventory. Auto-detects Magic Pop items, picks Flag / Devil's / Angel's × M/F, supports burst mode (delay = 0) or timed delay, cycle limit, and a live status panel. |
+| [`xMagicPop.py`](./xMagicPop.py) | Loop Magic Pop spins across your inventory. Auto-detects Magic Pop items, picks Flag / Devil's Spirit S / Angel's Spirit S (M/F), supports burst mode (delay = 0) or timed delay, cycle limit, and a live status panel. |
 
 ---
 
@@ -23,7 +23,7 @@ Magic Pop spinner. Sends Magic Pop "play" packets (`C->S 0x7118`) for every Magi
 
 ### Usage
 
-1. **Magic Pop Type** — pick the booth you're at: `Flag Male / Flag Female / Devil's Male / Devil's Female / Angel's Male / Angel's Female`.
+1. **Magic Pop Type** — pick the booth you're at: `Flag (M) / Flag (F) / Devil's Spirit S grade (M) / Devil's Spirit S grade (F) / Angel's Spirit S grade (M) / Angel's Spirit S grade (F)`.
 2. **Delay (sec)** — `0` means **burst mode** (~15 sends per event tick, as fast as the script engine). Set a positive number for a steady one-per-interval send.
 3. **Stop after cycles** — `0` = forever, otherwise stops after N full passes over your inventory.
 4. **Only play on Magic Pop items** — when checked (default), the loop skips empty slots and any non-Magic-Pop items. Matches inventory items whose `servername` contains `MAGIC_POP`.

@@ -14,12 +14,12 @@ OPCODE = 0x7118
 ENCRYPTED = False
 
 TYPES = [
-    ("Flag Male",      0x01),
-    ("Flag Female",    0x04),
-    ("Devil's Male",   0x05),
-    ("Devil's Female", 0x06),
-    ("Angel's Male",   0x07),
-    ("Angel's Female", 0x08),
+    ("Flag (M)",                  0x01),
+    ("Flag (F)",                  0x04),
+    ("Devil's Spirit S grade (M)", 0x05),
+    ("Devil's Spirit S grade (F)", 0x06),
+    ("Angel's Spirit S grade (M)", 0x07),
+    ("Angel's Spirit S grade (F)", 0x08),
 ]
 
 # Inventory slot bytes to spin on (slots 0x0D - 0x69, full magic pop range).
