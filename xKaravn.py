@@ -24,6 +24,8 @@ chkStartBotAfter = QtBind.createCheckBox(gui, 'cbx_start_bot_after_clicked', 'St
 chkUnequipAfter = QtBind.createCheckBox(gui, 'cbx_unequip_after_clicked', 'Unequip when done', 220, 42)
 chkRouteThief = QtBind.createCheckBox(gui, 'cbx_route_thief_clicked', 'Thief', 350, 42)
 chkRouteHunter = QtBind.createCheckBox(gui, 'cbx_route_hunter_clicked', 'Hunter', 410, 42)
+chkRouteTrader = QtBind.createCheckBox(gui, 'cbx_route_trader_clicked', 'Trader', 470, 42)
+chkReverseAfter = QtBind.createCheckBox(gui, 'cbx_reverse_after_clicked', 'Reverse to recall when done', 540, 42)
 
 QtBind.createLabel(gui, 'Goods item', 12, 74)
 txtBoxName = QtBind.createLineEdit(gui, DEFAULT_BOX_NAME, 95, 72, 150, 20)
@@ -524,10 +526,34 @@ terminate,transport
 use,returnscroll
 '''
 
+TRADER_ROUTE_SCRIPT = HUNTER_ROUTE_SCRIPT \
+    .replace('begintargettrading', 'wait,8000') \
+    .replace('settletargettrading', 'wait,5000')
+
+TRADER_START_X = 6488
+TRADER_START_Y = 1014
+TRADER_START_RADIUS = 35
+TRADER_SETTLE_X = 147
+TRADER_SETTLE_Y = 4
+TRADER_SETTLE_RADIUS = 15
+
+TRADER_PACKET_DELAY_AFTER_READY = 400
+TRADER_PACKET_DELAY_BETWEEN = 600
+TRADER_PACKET_DELAY_CLOSE = 400
+TRADER_PACKET_SETTLE_HOLD_MS = 2000
+TRADER_PACKET_COOLDOWN_MS = 30000
+
+TRADER_PACKET_START_TALK = (0x7045, 'D3 01 00 00')
+TRADER_PACKET_START_BEGIN = (0x7533, '07 D3 01 00 00')
+TRADER_PACKET_SETTLE_TALK = (0x7045, '06 06 00 00')
+TRADER_PACKET_SETTLE_CONFIRM = (0x7533, '08 06 06 00 00')
+TRADER_PACKET_SETTLE_CLOSE = (0x704B, '06 06 00 00')
+
 DEFAULT_CONFIG = {
     'enabled': False,
     'start_bot_after': True,
     'unequip_after': True,
+    'reverse_after': False,
     'route_mode': 'Thief',
     'verbose_logs': False,
     'box_name': DEFAULT_BOX_NAME,
@@ -551,6 +577,15 @@ last_box_count = 0
 route_start_wait_ms = 3500
 loaded_char_name = ''
 last_town_guard_at = 0
+
+trader_pkt_start_stage = 0
+trader_pkt_settle_stage = 0
+trader_pkt_stage_at = 0
+trader_pkt_settle_arrived_at = 0
+trader_pkt_start_done_visit = False
+trader_pkt_settle_done_visit = False
+trader_pkt_last_start_at = 0
+trader_pkt_last_settle_at = 0
 
 
 def _now():
@@ -605,7 +640,13 @@ def _read_gui():
     config['enabled'] = QtBind.isChecked(gui, chkEnabled)
     config['start_bot_after'] = QtBind.isChecked(gui, chkStartBotAfter)
     config['unequip_after'] = QtBind.isChecked(gui, chkUnequipAfter)
-    config['route_mode'] = 'Hunter' if QtBind.isChecked(gui, chkRouteHunter) else 'Thief'
+    config['reverse_after'] = QtBind.isChecked(gui, chkReverseAfter)
+    if QtBind.isChecked(gui, chkRouteTrader):
+        config['route_mode'] = 'Trader'
+    elif QtBind.isChecked(gui, chkRouteHunter):
+        config['route_mode'] = 'Hunter'
+    else:
+        config['route_mode'] = 'Thief'
     config['box_name'] = QtBind.text(gui, txtBoxName).strip() or DEFAULT_BOX_NAME
     config['box_limit'] = _safe_int(QtBind.text(gui, txtBoxLimit), 1, 1)
     config['scan_ms'] = _safe_int(QtBind.text(gui, txtScanMs), 60000, 1000)
@@ -619,8 +660,11 @@ def _write_gui():
     QtBind.setChecked(gui, chkEnabled, bool(config.get('enabled', False)))
     QtBind.setChecked(gui, chkStartBotAfter, bool(config.get('start_bot_after', True)))
     QtBind.setChecked(gui, chkUnequipAfter, bool(config.get('unequip_after', True)))
-    QtBind.setChecked(gui, chkRouteThief, config.get('route_mode', 'Thief') != 'Hunter')
-    QtBind.setChecked(gui, chkRouteHunter, config.get('route_mode', 'Thief') == 'Hunter')
+    QtBind.setChecked(gui, chkReverseAfter, bool(config.get('reverse_after', False)))
+    mode = config.get('route_mode', 'Thief')
+    QtBind.setChecked(gui, chkRouteThief, mode == 'Thief')
+    QtBind.setChecked(gui, chkRouteHunter, mode == 'Hunter')
+    QtBind.setChecked(gui, chkRouteTrader, mode == 'Trader')
     QtBind.setText(gui, txtBoxName, str(config.get('box_name', DEFAULT_BOX_NAME)))
     QtBind.setText(gui, txtBoxLimit, str(config.get('box_limit', 1)))
     QtBind.setText(gui, txtScanMs, str(config.get('scan_ms', 60000)))
@@ -883,14 +927,26 @@ def _set_state(new_state):
 
 
 def _route_script():
-    if config.get('route_mode', 'Thief') == 'Hunter':
+    mode = config.get('route_mode', 'Thief')
+    if mode == 'Hunter':
         script = HUNTER_ROUTE_SCRIPT.strip()
         if not script:
             _error('Hunter script is not loaded yet.')
             _set_status('no hunter script')
             return ''
-        return script + '\n'
-    return ROUTE_SCRIPT
+        script = script + '\n'
+    elif mode == 'Trader':
+        script = TRADER_ROUTE_SCRIPT.strip()
+        if not script:
+            _error('Trader script is not loaded yet.')
+            _set_status('no trader script')
+            return ''
+        script = script + '\n'
+    else:
+        script = ROUTE_SCRIPT
+    if config.get('reverse_after', False):
+        script = script.replace('use,returnscroll', 'use,reversereturnscroll')
+    return script
 
 
 def _trigger_return_for_route():
@@ -915,6 +971,7 @@ def _start_route():
     global route_start_wait_ms
     _read_gui()
     route_teleports = 0
+    _trader_packet_reset()
     equip_result = _equip_suit()
     if not equip_result:
         _set_state('idle')
@@ -926,9 +983,147 @@ def _start_route():
         _log('Job suit just equipped. Waiting 20 seconds before script starts.', True)
 
 
+def _trader_inject(opcode, hex_data, label):
+    try:
+        inject_joymax(opcode, bytearray.fromhex(hex_data), False)
+        _log('Trader packet sent: %s' % label, True)
+    except Exception as ex:
+        _error('Trader packet failed (%s): %s' % (label, ex))
+
+
+def _trader_near(target_x, target_y, radius):
+    try:
+        pos = get_position()
+    except Exception:
+        return False
+    if not pos:
+        return False
+    try:
+        x = float(pos.get('x', 0))
+        y = float(pos.get('y', 0))
+    except Exception:
+        return False
+    dx = x - target_x
+    dy = y - target_y
+    return (dx * dx + dy * dy) <= (radius * radius)
+
+
+def _trader_transport_ready():
+    try:
+        pets = get_pets()
+    except Exception:
+        return False
+    if not pets:
+        return False
+    keywords = ('transport', 'caravan', 'trade', 'camel', 'horse', 'bull', 'ox', 'yak',
+                'behemoth', 'lizard', 'elephant', 'job')
+    excludes = ('fellow', 'grab', 'pick')
+    for uid, pet in pets.items():
+        try:
+            blob = ' '.join(str(pet.get(k, '')) for k in ('type', 'name', 'model', 'servername')).lower()
+        except Exception:
+            continue
+        if any(x in blob for x in excludes):
+            continue
+        if any(k in blob for k in keywords):
+            return True
+    return False
+
+
+def _trader_packet_reset():
+    global trader_pkt_start_stage, trader_pkt_settle_stage
+    global trader_pkt_stage_at, trader_pkt_settle_arrived_at
+    global trader_pkt_start_done_visit, trader_pkt_settle_done_visit
+    global trader_pkt_last_start_at, trader_pkt_last_settle_at
+    trader_pkt_start_stage = 0
+    trader_pkt_settle_stage = 0
+    trader_pkt_stage_at = 0
+    trader_pkt_settle_arrived_at = 0
+    trader_pkt_start_done_visit = False
+    trader_pkt_settle_done_visit = False
+    trader_pkt_last_start_at = 0
+    trader_pkt_last_settle_at = 0
+
+
+def _trader_packet_tick(now):
+    global trader_pkt_start_stage, trader_pkt_settle_stage
+    global trader_pkt_stage_at, trader_pkt_settle_arrived_at
+    global trader_pkt_start_done_visit, trader_pkt_settle_done_visit
+    global trader_pkt_last_start_at, trader_pkt_last_settle_at
+
+    if config.get('route_mode', 'Thief') != 'Trader':
+        return
+    if state != 'route_running':
+        return
+
+    near_start = _trader_near(TRADER_START_X, TRADER_START_Y, TRADER_START_RADIUS)
+    near_settle = _trader_near(TRADER_SETTLE_X, TRADER_SETTLE_Y, TRADER_SETTLE_RADIUS)
+
+    if not near_start:
+        trader_pkt_start_done_visit = False
+    if not near_settle:
+        trader_pkt_settle_done_visit = False
+        trader_pkt_settle_arrived_at = 0
+
+    if (near_start and not trader_pkt_start_done_visit
+            and now - trader_pkt_last_start_at > TRADER_PACKET_COOLDOWN_MS
+            and trader_pkt_start_stage == 0):
+        if not _trader_transport_ready():
+            _set_status('waiting for Caravan Bugle')
+        else:
+            trader_pkt_start_done_visit = True
+            trader_pkt_last_start_at = now
+            trader_pkt_start_stage = 1
+            trader_pkt_stage_at = now
+            _log('Trader: transport summoned, talking to start NPC.', True)
+
+    if trader_pkt_start_stage == 1 and now - trader_pkt_stage_at >= TRADER_PACKET_DELAY_AFTER_READY:
+        _trader_inject(TRADER_PACKET_START_TALK[0], TRADER_PACKET_START_TALK[1], 'start talk')
+        trader_pkt_start_stage = 2
+        trader_pkt_stage_at = now
+    elif trader_pkt_start_stage == 2 and now - trader_pkt_stage_at >= TRADER_PACKET_DELAY_BETWEEN:
+        _trader_inject(TRADER_PACKET_START_BEGIN[0], TRADER_PACKET_START_BEGIN[1], 'start begin')
+        trader_pkt_start_stage = 0
+
+    if near_settle and not trader_pkt_settle_done_visit and trader_pkt_settle_stage == 0:
+        if not _trader_transport_ready():
+            _set_status('waiting for transport at settle')
+        else:
+            if trader_pkt_settle_arrived_at == 0:
+                trader_pkt_settle_arrived_at = now
+                _log('Trader: at settle NPC, holding before settle.', True)
+            elif (now - trader_pkt_settle_arrived_at >= TRADER_PACKET_SETTLE_HOLD_MS
+                  and now - trader_pkt_last_settle_at > TRADER_PACKET_COOLDOWN_MS):
+                trader_pkt_settle_done_visit = True
+                trader_pkt_last_settle_at = now
+                trader_pkt_settle_stage = 1
+                trader_pkt_stage_at = now
+
+    if trader_pkt_settle_stage == 1 and now - trader_pkt_stage_at >= TRADER_PACKET_DELAY_AFTER_READY:
+        _trader_inject(TRADER_PACKET_SETTLE_TALK[0], TRADER_PACKET_SETTLE_TALK[1], 'settle talk')
+        trader_pkt_settle_stage = 2
+        trader_pkt_stage_at = now
+    elif trader_pkt_settle_stage == 2 and now - trader_pkt_stage_at >= TRADER_PACKET_DELAY_BETWEEN:
+        _trader_inject(TRADER_PACKET_SETTLE_CONFIRM[0], TRADER_PACKET_SETTLE_CONFIRM[1], 'settle confirm')
+        trader_pkt_settle_stage = 3
+        trader_pkt_stage_at = now
+    elif trader_pkt_settle_stage == 3 and now - trader_pkt_stage_at >= TRADER_PACKET_DELAY_CLOSE:
+        _trader_inject(TRADER_PACKET_SETTLE_CLOSE[0], TRADER_PACKET_SETTLE_CLOSE[1], 'settle close')
+        trader_pkt_settle_stage = 0
+
+
 def _run_route_script():
-    global route_teleports
+    global route_teleports, route_start_wait_ms
     route_teleports = 0
+    if not _job_slot_item():
+        _log('Job suit not detected before script start; re-equipping.', True)
+        if _equip_suit():
+            route_start_wait_ms = config.get('equip_wait_ms', 20000)
+            _set_state('starting_route')
+            return
+        _error('Job suit could not be equipped; aborting route.')
+        _set_state('idle')
+        return
     try:
         script = _route_script()
         if not script:
@@ -944,6 +1139,10 @@ def _run_route_script():
 
 def _finish_route():
     count = _box_count()
+    if config.get('reverse_after', False):
+        _log('Reverse return: %d boxes left. Skipping unequip; resuming bot at recall point.' % count, True)
+        _finish_after_suit()
+        return
     if not config.get('unequip_after', True):
         _log('Jangan check: %d boxes left. Keeping suit on (Unequip when done disabled).' % count, True)
         _finish_after_suit()
@@ -1008,11 +1207,15 @@ def btn_start_clicked():
 
 
 def btn_stop_clicked():
-    global state
-    state = 'idle'
+    global state, action_at, route_teleports
     config['enabled'] = False
     QtBind.setChecked(gui, chkEnabled, False)
     _save_config()
+    _stop_all()
+    _trader_packet_reset()
+    state = 'idle'
+    action_at = _now()
+    route_teleports = 0
     _set_status('stopped')
 
 
@@ -1035,24 +1238,38 @@ def cbx_unequip_after_clicked(checked=None):
     _save_config()
 
 
+def cbx_reverse_after_clicked(checked=None):
+    config['reverse_after'] = QtBind.isChecked(gui, chkReverseAfter)
+    _save_config()
+
+
+def _select_route_mode(mode):
+    QtBind.setChecked(gui, chkRouteThief, mode == 'Thief')
+    QtBind.setChecked(gui, chkRouteHunter, mode == 'Hunter')
+    QtBind.setChecked(gui, chkRouteTrader, mode == 'Trader')
+    config['route_mode'] = mode
+    _save_config()
+
+
 def cbx_route_thief_clicked(checked=None):
     if QtBind.isChecked(gui, chkRouteThief):
-        QtBind.setChecked(gui, chkRouteHunter, False)
-        config['route_mode'] = 'Thief'
-    elif not QtBind.isChecked(gui, chkRouteHunter):
-        QtBind.setChecked(gui, chkRouteThief, True)
-        config['route_mode'] = 'Thief'
-    _save_config()
+        _select_route_mode('Thief')
+    elif not (QtBind.isChecked(gui, chkRouteHunter) or QtBind.isChecked(gui, chkRouteTrader)):
+        _select_route_mode('Thief')
 
 
 def cbx_route_hunter_clicked(checked=None):
     if QtBind.isChecked(gui, chkRouteHunter):
-        QtBind.setChecked(gui, chkRouteThief, False)
-        config['route_mode'] = 'Hunter'
-    elif not QtBind.isChecked(gui, chkRouteThief):
-        QtBind.setChecked(gui, chkRouteHunter, True)
-        config['route_mode'] = 'Hunter'
-    _save_config()
+        _select_route_mode('Hunter')
+    elif not (QtBind.isChecked(gui, chkRouteThief) or QtBind.isChecked(gui, chkRouteTrader)):
+        _select_route_mode('Hunter')
+
+
+def cbx_route_trader_clicked(checked=None):
+    if QtBind.isChecked(gui, chkRouteTrader):
+        _select_route_mode('Trader')
+    elif not (QtBind.isChecked(gui, chkRouteThief) or QtBind.isChecked(gui, chkRouteHunter)):
+        _select_route_mode('Trader')
 
 
 def joined_game():
@@ -1111,6 +1328,7 @@ def event_loop():
         return
 
     if state == 'route_running':
+        _trader_packet_tick(now)
         if now - last_town_guard_at >= config.get('scan_ms', 60000):
             last_town_guard_at = now
             if _recover_if_dead_returned_to_jangan():
