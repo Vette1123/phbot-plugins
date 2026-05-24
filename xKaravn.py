@@ -1,0 +1,1132 @@
+from phBot import *
+import QtBind
+import json
+import os
+import struct
+import time
+
+pName = 'xKaravn'
+pVersion = '1.0.0'
+pAuthor = 'xKaravn'
+pUrl = ''
+
+DEFAULT_BOX_NAME = 'Trader Sack Lv 4'
+BOX_NAME_ALIASES = {
+    'trader sack lv 4': ('special box', 'specialty goods'),
+    'special box': ('specialty goods',)
+}
+
+gui = QtBind.init(__name__, pName)
+
+QtBind.createLabel(gui, 'xKaravn - Auto Caravan', 12, 12)
+chkEnabled = QtBind.createCheckBox(gui, 'cbx_enabled_clicked', 'Enabled', 12, 42)
+chkStartBotAfter = QtBind.createCheckBox(gui, 'cbx_start_bot_after_clicked', 'Start bot when done', 90, 42)
+chkRouteThief = QtBind.createCheckBox(gui, 'cbx_route_thief_clicked', 'Thief', 220, 42)
+chkRouteHunter = QtBind.createCheckBox(gui, 'cbx_route_hunter_clicked', 'Hunter', 280, 42)
+
+QtBind.createLabel(gui, 'Box name', 12, 74)
+txtBoxName = QtBind.createLineEdit(gui, DEFAULT_BOX_NAME, 90, 72, 150, 20)
+QtBind.createLabel(gui, 'Return count', 260, 74)
+txtBoxLimit = QtBind.createLineEdit(gui, '1', 335, 72, 40, 20)
+QtBind.createLabel(gui, 'Scan ms', 380, 74)
+txtScanMs = QtBind.createLineEdit(gui, '60000', 455, 72, 65, 20)
+
+QtBind.createLabel(gui, 'Job suit filter', 12, 104)
+txtSuitFilter = QtBind.createLineEdit(gui, 'Trader', 110, 102, 150, 20)
+QtBind.createLabel(gui, 'Jangan min', 280, 104)
+txtFinalBoxMin = QtBind.createLineEdit(gui, '20', 350, 102, 40, 20)
+QtBind.createLabel(gui, 'TP', 405, 104)
+txtFinalTeleports = QtBind.createLineEdit(gui, '3', 430, 102, 35, 20)
+QtBind.createLabel(gui, 'Action ms', 480, 104)
+txtActionMs = QtBind.createLineEdit(gui, '3500', 545, 102, 55, 20)
+
+QtBind.createButton(gui, 'btn_save_clicked', 'Save', 12, 137)
+QtBind.createButton(gui, 'btn_scan_clicked', 'Scan', 82, 137)
+QtBind.createButton(gui, 'btn_start_clicked', 'Start', 142, 137)
+QtBind.createButton(gui, 'btn_stop_clicked', 'Stop', 212, 137)
+QtBind.createButton(gui, 'btn_run_route_clicked', 'Run script now', 292, 137)
+
+lblBox = QtBind.createLabel(gui, 'Box: not read', 12, 177)
+lblSuit = QtBind.createLabel(gui, 'Suit: not read', 12, 202)
+lblStatus = QtBind.createLabel(gui, 'Status: loading...', 12, 227)
+
+ROUTE_SCRIPT = '''walk,6430,1099,-32
+walk,6428,1113,0
+walk,6419,1134,-6
+walk,6405,1134,-6
+walk,6383,1133,-6
+walk,6365,1134,-6
+walk,6333,1134,-5
+walk,6317,1134,-6
+walk,6301,1134,-6
+walk,6292,1132,-2
+walk,6290,1126,0
+walk,6289,1113,2
+walk,6289,1100,8
+walk,6287,1092,0
+cast,Job - Caravan Bugle
+begintargettrading
+walk,6259,1093,0
+walk,6233,1090,0
+walk,6221,1091,0
+walk,6219,1105,8
+walk,6220,1124,0
+walk,6189,1133,-3
+walk,6161,1134,1
+walk,6131,1133,-4
+walk,6101,1122,13
+walk,6062,1105,28
+walk,6033,1089,56
+walk,5998,1074,77
+walk,5952,1064,81
+walk,5913,1066,104
+walk,5864,1068,96
+walk,5824,1065,160
+walk,5788,1059,214
+walk,5748,1057,287
+walk,5707,1054,355
+walk,5673,1054,418
+walk,5628,1059,520
+walk,5589,1058,573
+walk,5549,1045,636
+walk,5519,1024,686
+walk,5483,996,687
+walk,5439,986,684
+walk,5393,976,671
+walk,5345,969,667
+walk,5311,957,684
+walk,5277,935,690
+walk,5244,906,689
+walk,5211,873,710
+walk,5172,833,717
+walk,5146,792,756
+walk,5131,750,781
+walk,5115,710,745
+walk,5089,678,764
+walk,5078,650,754
+walk,5066,624,680
+walk,5030,590,563
+walk,4988,563,570
+walk,4951,538,599
+walk,4915,518,632
+walk,4866,487,725
+walk,4823,471,813
+walk,4773,477,853
+walk,4722,493,864
+walk,4689,498,859
+walk,4661,503,835
+walk,4611,512,743
+walk,4571,521,681
+walk,4534,538,630
+walk,4506,563,609
+walk,4481,592,572
+walk,4480,615,578
+walk,4489,643,607
+walk,4506,691,482
+walk,4521,736,361
+walk,4517,780,271
+walk,4505,816,169
+walk,4485,856,77
+walk,4467,890,51
+walk,4456,914,49
+walk,4451,922,48
+wait,5000
+teleport,Ferry Ticket Seller Chau,Ferry Ticket Seller Hageuk
+wait,5000
+walk,4110,1259,42
+walk,4098,1288,63
+walk,4077,1326,70
+walk,4056,1356,73
+walk,4035,1381,54
+walk,4007,1395,32
+walk,3971,1390,-3
+walk,3936,1378,-11
+walk,3882,1353,-23
+walk,3850,1338,-6
+walk,3808,1318,-10
+walk,3771,1303,-10
+walk,3731,1285,-3
+walk,3690,1272,0
+walk,3645,1262,0
+walk,3604,1259,0
+walk,3556,1248,1
+walk,3528,1216,4
+walk,3499,1182,8
+walk,3467,1148,17
+walk,3441,1122,19
+walk,3406,1089,6
+walk,3370,1064,3
+walk,3333,1049,1
+walk,3303,1071,0
+walk,3280,1102,0
+walk,3267,1139,0
+walk,3245,1169,0
+walk,3210,1186,0
+walk,3164,1198,0
+walk,3116,1206,0
+walk,3079,1212,0
+walk,3032,1222,1
+walk,2986,1227,-11
+walk,2934,1224,-13
+walk,2897,1224,8
+walk,2867,1234,26
+walk,2816,1251,21
+walk,2779,1261,-21
+walk,2735,1266,25
+walk,2680,1260,2
+walk,2630,1223,5
+walk,2610,1187,58
+walk,2587,1138,57
+walk,2564,1093,-53
+walk,2543,1034,-229
+walk,2521,988,-282
+walk,2508,956,-304
+walk,2496,922,-307
+walk,2476,879,-296
+walk,2461,838,-259
+walk,2444,797,-213
+walk,2428,766,-199
+walk,2406,726,-197
+walk,2381,688,-224
+walk,2345,644,-215
+walk,2296,609,-152
+walk,2246,584,-134
+walk,2196,570,-72
+walk,2143,557,-29
+walk,2104,546,-21
+walk,2066,536,-37
+walk,2025,530,-49
+walk,1971,526,-86
+walk,1928,511,-83
+walk,1907,474,-55
+walk,1882,427,-48
+walk,1864,379,-35
+walk,1850,331,-25
+walk,1849,285,-11
+walk,1854,232,0
+walk,1857,189,15
+walk,1853,146,17
+walk,1841,110,26
+walk,1824,73,64
+walk,1802,34,84
+walk,1768,-10,69
+walk,1743,-63,10
+walk,1729,-112,7
+walk,1699,-158,9
+walk,1673,-197,-19
+walk,1651,-233,-42
+walk,1611,-264,-56
+walk,1584,-285,-56
+walk,1573,-294,-57
+walk,1566,-295,-28
+wait,5000
+teleport,Boat Ticket Seller Asa,Boat Ticket Seller Asimo
+wait,5000
+walk,1070,-302,-34
+walk,1028,-300,-76
+walk,997,-294,-111
+walk,964,-289,-127
+walk,930,-277,-129
+walk,889,-261,-108
+walk,857,-242,-95
+walk,825,-223,-72
+walk,789,-207,-93
+walk,754,-191,-83
+walk,711,-177,-79
+walk,677,-172,-41
+walk,633,-176,-23
+walk,600,-188,11
+walk,557,-203,-8
+walk,520,-207,18
+walk,500,-209,57
+walk,459,-213,-3
+walk,418,-233,12
+walk,382,-253,101
+walk,362,-266,157
+walk,323,-294,115
+walk,305,-299,167
+walk,265,-321,73
+walk,230,-319,71
+walk,194,-317,47
+walk,158,-305,39
+walk,123,-283,3
+walk,114,-270,3
+walk,113,-244,10
+walk,114,-214,10
+walk,113,-185,10
+walk,112,-155,12
+walk,104,-131,10
+walk,97,-117,22
+walk,93,-99,84
+walk,92,-89,99
+settletargettrading
+terminate,transport
+use,returnscroll
+'''
+
+HUNTER_ROUTE_SCRIPT = '''walk,6446,1069,-32
+walk,6451,1048,-32
+walk,6445,1018,-32
+walk,6440,990,1
+walk,6444,978,0
+walk,6467,982,0
+walk,6480,995,0
+walk,6490,1016,0
+cast,Job - Caravan Bugle
+begintargettrading
+walk,6477,995,0
+walk,6448,974,0
+walk,6436,969,0
+walk,6434,962,0
+walk,6434,932,0
+walk,6433,905,-9
+walk,6403,882,-4
+walk,6374,863,-14
+walk,6342,863,-10
+walk,6322,838,-22
+walk,6299,806,-38
+walk,6275,791,-14
+walk,6227,771,-5
+walk,6196,752,16
+walk,6149,725,39
+walk,6108,709,70
+walk,6074,699,140
+walk,6031,692,160
+walk,5987,691,172
+walk,5945,689,161
+walk,5901,687,154
+walk,5854,687,158
+walk,5817,687,167
+walk,5792,686,167
+walk,5774,686,208
+walk,5738,686,170
+walk,5709,683,204
+walk,5685,683,253
+walk,5652,676,309
+walk,5630,666,410
+walk,5602,655,504
+walk,5565,636,593
+walk,5530,617,684
+walk,5505,603,747
+walk,5470,582,805
+walk,5448,567,858
+walk,5428,557,892
+walk,5406,548,923
+walk,5379,547,955
+walk,5358,544,977
+walk,5327,540,969
+walk,5301,536,945
+walk,5266,538,866
+walk,5224,552,813
+walk,5192,562,776
+walk,5159,572,746
+walk,5121,582,707
+walk,5085,589,662
+walk,5046,577,599
+walk,5011,559,574
+walk,4964,537,591
+walk,4932,520,624
+walk,4895,498,669
+walk,4856,485,752
+walk,4826,476,815
+walk,4785,479,849
+walk,4762,493,865
+walk,4728,499,867
+walk,4695,501,862
+walk,4665,499,836
+walk,4634,503,769
+walk,4594,511,715
+walk,4558,518,665
+walk,4529,540,626
+walk,4501,562,599
+walk,4480,597,573
+walk,4471,624,575
+walk,4480,642,606
+walk,4498,669,553
+walk,4514,699,463
+walk,4527,734,360
+walk,4523,759,329
+walk,4513,792,239
+walk,4489,840,105
+walk,4472,876,58
+walk,4459,904,49
+walk,4453,919,48
+wait,5000
+teleport,Ferry Ticket Seller Chau,Ferry Ticket Seller Hageuk
+wait,5000
+walk,4130,1237,40
+walk,4124,1266,44
+walk,4108,1297,57
+walk,4079,1333,70
+walk,4059,1358,71
+walk,4035,1384,51
+walk,4023,1406,40
+walk,4008,1426,30
+walk,3994,1434,8
+walk,3982,1414,0
+walk,3975,1397,0
+walk,3939,1380,-12
+walk,3903,1366,-26
+walk,3873,1349,-13
+walk,3842,1333,-14
+walk,3811,1320,-13
+walk,3786,1310,-6
+walk,3760,1297,-9
+walk,3732,1279,-4
+walk,3707,1271,-8
+walk,3673,1264,0
+walk,3641,1261,0
+walk,3607,1263,0
+walk,3592,1265,0
+walk,3567,1259,0
+walk,3545,1231,2
+walk,3521,1205,4
+walk,3498,1179,8
+walk,3477,1158,16
+walk,3450,1130,19
+walk,3419,1098,12
+walk,3394,1075,4
+walk,3373,1058,3
+walk,3349,1045,2
+walk,3325,1045,0
+walk,3302,1056,0
+walk,3289,1068,0
+walk,3276,1114,0
+walk,3270,1146,0
+walk,3263,1164,0
+walk,3251,1173,0
+walk,3211,1187,0
+walk,3172,1198,0
+walk,3137,1205,0
+walk,3103,1208,0
+walk,3068,1214,0
+walk,3030,1228,-7
+walk,2996,1232,-19
+walk,2971,1227,-20
+walk,2938,1229,-9
+walk,2897,1246,6
+walk,2881,1253,20
+walk,2851,1266,-39
+walk,2825,1276,-37
+walk,2797,1284,-26
+walk,2771,1294,-1
+walk,2752,1293,39
+walk,2725,1287,17
+walk,2687,1269,2
+walk,2666,1256,2
+walk,2638,1237,2
+walk,2614,1206,41
+walk,2600,1187,69
+walk,2586,1160,76
+walk,2572,1129,37
+walk,2554,1088,-85
+walk,2533,1033,-243
+walk,2521,995,-282
+walk,2514,974,-288
+walk,2500,937,-309
+walk,2489,909,-304
+walk,2471,871,-288
+walk,2462,844,-262
+walk,2452,817,-235
+walk,2441,791,-208
+walk,2430,764,-200
+walk,2415,736,-197
+walk,2397,703,-216
+walk,2377,675,-224
+walk,2352,645,-217
+walk,2335,631,-190
+walk,2304,613,-157
+walk,2279,599,-142
+walk,2249,585,-137
+walk,2218,575,-110
+walk,2195,569,-71
+walk,2163,563,-50
+walk,2140,557,-28
+walk,2115,549,-22
+walk,2085,540,-32
+walk,2057,530,-54
+walk,2034,527,-51
+walk,2004,529,-59
+walk,1975,530,-84
+walk,1943,524,-94
+walk,1921,507,-79
+walk,1907,485,-58
+walk,1888,451,-52
+walk,1872,422,-46
+walk,1858,395,-38
+walk,1845,369,-37
+walk,1840,337,-34
+walk,1842,298,-20
+walk,1849,262,2
+walk,1855,228,2
+walk,1858,188,15
+walk,1858,160,17
+walk,1855,131,17
+walk,1843,102,31
+walk,1827,74,63
+walk,1812,50,78
+walk,1793,30,84
+walk,1774,12,82
+walk,1756,-2,62
+walk,1734,-5,53
+walk,1699,0,28
+walk,1675,2,22
+walk,1651,4,-13
+walk,1626,-5,-17
+walk,1599,-12,-23
+walk,1586,-16,-20
+walk,1582,-17,-20
+wait,5000
+teleport,Boat Ticket Seller Salmai,Boat Ticket Seller Rahan
+wait,5000
+walk,1025,-38,-21
+walk,997,-21,-18
+walk,969,-4,-20
+walk,945,10,-31
+walk,915,12,-27
+walk,888,13,-27
+walk,850,16,-30
+walk,820,19,-26
+walk,781,31,-22
+walk,748,49,-16
+walk,718,67,-2
+walk,694,82,13
+walk,666,91,17
+walk,641,92,23
+walk,611,81,20
+walk,586,69,14
+walk,555,59,4
+walk,515,50,1
+walk,491,48,5
+walk,450,48,2
+walk,429,47,11
+walk,397,48,11
+walk,364,48,11
+walk,374,48,11
+walk,347,48,11
+walk,317,48,13
+walk,294,48,11
+walk,272,47,78
+walk,251,48,164
+walk,242,48,224
+walk,223,47,243
+walk,197,47,243
+walk,178,46,243
+walk,168,45,243
+walk,164,42,243
+walk,159,35,243
+walk,158,19,243
+walk,151,8,243
+walk,147,2,243
+settletargettrading
+terminate,transport
+use,returnscroll
+'''
+
+DEFAULT_CONFIG = {
+    'enabled': False,
+    'start_bot_after': True,
+    'route_mode': 'Thief',
+    'verbose_logs': False,
+    'box_name': DEFAULT_BOX_NAME,
+    'box_limit': 1,
+    'scan_ms': 60000,
+    'suit_filter': 'Trader',
+    'final_box_min': 20,
+    'final_teleports': 3,
+    'equip_wait_ms': 20000,
+    'unequip_wait_ms': 20000,
+    'action_ms': 3500
+}
+
+config = dict(DEFAULT_CONFIG)
+
+state = 'idle'
+last_scan_at = 0
+action_at = 0
+route_teleports = 0
+last_box_count = 0
+route_start_wait_ms = 3500
+loaded_char_name = ''
+last_town_guard_at = 0
+
+
+def _now():
+    return int(time.time() * 1000)
+
+
+def _normalize(value):
+    text = str(value or '').lower()
+    for char in '._-[]()':
+        text = text.replace(char, ' ')
+    return ' '.join(text.split())
+
+
+def _set_status(message):
+    QtBind.setText(gui, lblStatus, 'Status: ' + str(message))
+
+
+def _log(message, force=False):
+    if config.get('verbose_logs', False):
+        log('[%s] %s' % (pName, message))
+
+
+def _error(message):
+    log('[%s] %s' % (pName, message))
+
+
+def _safe_int(value, default_value, minimum_value):
+    try:
+        return max(minimum_value, int(str(value).strip()))
+    except Exception:
+        return default_value
+
+
+def _config_path():
+    try:
+        char = get_character_data()
+        char_name = char.get('name', 'default') if char else 'default'
+    except Exception:
+        char_name = 'default'
+    return os.path.join(get_config_dir(), '%s_%s.json' % (pName, char_name))
+
+
+def _character_name():
+    try:
+        char = get_character_data()
+        return char.get('name', 'default') if char else 'default'
+    except Exception:
+        return 'default'
+
+
+def _read_gui():
+    config['enabled'] = QtBind.isChecked(gui, chkEnabled)
+    config['start_bot_after'] = QtBind.isChecked(gui, chkStartBotAfter)
+    config['route_mode'] = 'Hunter' if QtBind.isChecked(gui, chkRouteHunter) else 'Thief'
+    config['box_name'] = QtBind.text(gui, txtBoxName).strip() or DEFAULT_BOX_NAME
+    config['box_limit'] = _safe_int(QtBind.text(gui, txtBoxLimit), 1, 1)
+    config['scan_ms'] = _safe_int(QtBind.text(gui, txtScanMs), 60000, 1000)
+    config['suit_filter'] = QtBind.text(gui, txtSuitFilter).strip() or 'Trader'
+    config['final_box_min'] = _safe_int(QtBind.text(gui, txtFinalBoxMin), 20, 1)
+    config['final_teleports'] = _safe_int(QtBind.text(gui, txtFinalTeleports), 3, 1)
+    config['action_ms'] = _safe_int(QtBind.text(gui, txtActionMs), 3500, 500)
+
+
+def _write_gui():
+    QtBind.setChecked(gui, chkEnabled, bool(config.get('enabled', False)))
+    QtBind.setChecked(gui, chkStartBotAfter, bool(config.get('start_bot_after', True)))
+    QtBind.setChecked(gui, chkRouteThief, config.get('route_mode', 'Thief') != 'Hunter')
+    QtBind.setChecked(gui, chkRouteHunter, config.get('route_mode', 'Thief') == 'Hunter')
+    QtBind.setText(gui, txtBoxName, str(config.get('box_name', DEFAULT_BOX_NAME)))
+    QtBind.setText(gui, txtBoxLimit, str(config.get('box_limit', 1)))
+    QtBind.setText(gui, txtScanMs, str(config.get('scan_ms', 60000)))
+    QtBind.setText(gui, txtSuitFilter, str(config.get('suit_filter', 'Trader')))
+    QtBind.setText(gui, txtFinalBoxMin, str(config.get('final_box_min', 20)))
+    QtBind.setText(gui, txtFinalTeleports, str(config.get('final_teleports', 3)))
+    QtBind.setText(gui, txtActionMs, str(config.get('action_ms', 3500)))
+
+
+def _load_config():
+    global config
+    global loaded_char_name
+
+    config.clear()
+    config.update(DEFAULT_CONFIG)
+    loaded_char_name = _character_name()
+    path = _config_path()
+    if os.path.exists(path):
+        try:
+            with open(path, 'r') as f:
+                config.update(json.load(f))
+        except Exception as ex:
+            _error('Could not read config: %s' % ex)
+    if _normalize(config.get('box_name')) == 'special box':
+        config['box_name'] = DEFAULT_BOX_NAME
+    if config.get('scan_ms') == 5000:
+        config['scan_ms'] = 60000
+    if config.get('final_box_min') == 50:
+        config['final_box_min'] = 20
+    _write_gui()
+    _set_status('monitoring' if config.get('enabled', False) else 'disabled')
+
+
+def _save_config():
+    _read_gui()
+    try:
+        with open(_config_path(), 'w') as f:
+            f.write(json.dumps(config, indent=4, sort_keys=True))
+        _log('Config saved.', True)
+    except Exception as ex:
+        _error('Could not save config: %s' % ex)
+
+
+def _item_quantity(item):
+    for key in ('quantity', 'qty', 'count', 'stack'):
+        try:
+            if key in item:
+                return int(item.get(key) or 0)
+        except Exception:
+            pass
+    return 1
+
+
+def _item_text(item):
+    parts = [item.get('name', ''), item.get('servername', '')]
+    try:
+        item_data = get_item(item.get('model'))
+        if item_data:
+            parts.append(item_data.get('name', ''))
+            parts.append(item_data.get('servername', ''))
+    except Exception:
+        pass
+    return _normalize(' '.join([str(part or '') for part in parts]))
+
+
+def _container_items(container):
+    if not container:
+        return []
+    if isinstance(container, dict):
+        if 'items' in container:
+            return container.get('items') or []
+        for key in ('job_pouch', 'job_inventory', 'pouch', 'goods', 'slots'):
+            if key in container:
+                value = container.get(key)
+                if isinstance(value, dict) and 'items' in value:
+                    return value.get('items') or []
+                if isinstance(value, list):
+                    return value
+    if isinstance(container, list):
+        return container
+    return []
+
+
+def _box_count(debug=False):
+    box_filter = _normalize(config.get('box_name', DEFAULT_BOX_NAME))
+    box_filters = [box_filter]
+    for alias in BOX_NAME_ALIASES.get(box_filter, ()):
+        normalized_alias = _normalize(alias)
+        if normalized_alias and normalized_alias not in box_filters:
+            box_filters.append(normalized_alias)
+    total = 0
+    sources = []
+
+    for func_name in ('get_job_pouch', 'get_job_pouch_data', 'get_job_inventory', 'get_job_data'):
+        func = globals().get(func_name)
+        if not func:
+            continue
+        try:
+            items = _container_items(func())
+            if items:
+                sources.append((func_name, items))
+        except Exception:
+            pass
+
+    try:
+        inv = get_inventory()
+        items = _container_items(inv)
+        if items:
+            sources.append(('inventory', items))
+    except Exception:
+        pass
+
+    names = []
+    seen_names = []
+    for source_name, items in sources:
+        for item in items:
+            if not item:
+                continue
+            item_text = _item_text(item)
+            if debug and item_text:
+                seen_names.append('%s:%s' % (source_name, item_text))
+            if any(candidate in item_text for candidate in box_filters):
+                qty = _item_quantity(item)
+                total += qty
+                names.append('%s:%s' % (source_name, qty))
+
+    if debug and total == 0:
+        _log('Box not found. Filter: %s | Items seen: %s' % (
+            ', '.join(box_filters),
+            ' | '.join(seen_names[:12]) if seen_names else 'no items read'
+        ), True)
+
+    QtBind.setText(gui, lblBox, 'Box: %d / return %d / min %d %s' % (
+        total,
+        config.get('box_limit', 1),
+        config.get('final_box_min', 70),
+        ', '.join(names[:4])
+    ))
+    return total
+
+
+def _inventory_items():
+    try:
+        inv = get_inventory()
+        if inv and 'items' in inv:
+            return inv['items']
+    except Exception:
+        pass
+    return []
+
+
+def _empty_slot():
+    items = _inventory_items()
+    for slot, item in enumerate(items):
+        if slot >= 13 and not item:
+            return slot
+    return -1
+
+
+def _job_slot_item():
+    items = _inventory_items()
+    if len(items) > 8:
+        return items[8]
+    return None
+
+
+def _is_near_jangan():
+    try:
+        pos = get_position()
+    except Exception:
+        return False
+    if not pos:
+        return False
+    try:
+        x = float(pos.get('x', 0))
+        y = float(pos.get('y', 0))
+    except Exception:
+        return False
+    return 6200 <= x <= 6600 and 900 <= y <= 1250
+
+
+def _find_suit_slot():
+    suit_filter = _normalize(config.get('suit_filter', 'Trader'))
+    items = _inventory_items()
+    for slot, item in enumerate(items):
+        if slot < 13 or not item:
+            continue
+        if suit_filter and suit_filter not in _item_text(item):
+            continue
+        try:
+            item_data = get_item(item.get('model'))
+            if item_data and item_data.get('tid2') != 7:
+                continue
+        except Exception:
+            pass
+        return slot, item
+    return -1, None
+
+
+def _move_item(source_slot, target_slot, name):
+    packet = struct.pack('<BBBH', 0, int(source_slot), int(target_slot), 0)
+    inject_joymax(0x7034, packet, False)
+    _log('Item moved: %s slot %s -> %s' % (name, source_slot, target_slot), True)
+
+
+def _equip_suit():
+    current = _job_slot_item()
+    if current:
+        QtBind.setText(gui, lblSuit, 'Suit: already worn (%s)' % current.get('name', 'slot 8'))
+        return 'already'
+
+    slot, item = _find_suit_slot()
+    if slot < 0 or not item:
+        QtBind.setText(gui, lblSuit, 'Suit: not found')
+        _log('Job suit not found. Filter: %s' % config.get('suit_filter', 'Trader'), True)
+        return False
+
+    _move_item(slot, 8, item.get('name', 'job suit'))
+    QtBind.setText(gui, lblSuit, 'Suit: equipping (%s)' % item.get('name', 'job suit'))
+    return 'equipped'
+
+
+def _unequip_suit():
+    item = _job_slot_item()
+    if not item:
+        QtBind.setText(gui, lblSuit, 'Suit: not worn')
+        return True
+
+    slot = _empty_slot()
+    if slot < 0:
+        _log('No empty inventory slot to unequip suit.', True)
+        QtBind.setText(gui, lblSuit, 'Suit: no empty slot')
+        return False
+
+    _move_item(8, slot, item.get('name', 'job suit'))
+    QtBind.setText(gui, lblSuit, 'Suit: unequipping')
+    return True
+
+
+def _stop_all():
+    try:
+        stop_bot()
+    except Exception:
+        pass
+    try:
+        stop_trade()
+    except Exception:
+        pass
+    try:
+        stop_script()
+    except Exception:
+        pass
+
+
+def _set_state(new_state):
+    global state, action_at
+    state = new_state
+    action_at = _now()
+    _set_status(new_state)
+
+
+def _route_script():
+    if config.get('route_mode', 'Thief') == 'Hunter':
+        script = HUNTER_ROUTE_SCRIPT.strip()
+        if not script:
+            _error('Hunter script is not loaded yet.')
+            _set_status('no hunter script')
+            return ''
+        return script + '\n'
+    return ROUTE_SCRIPT
+
+
+def _trigger_return_for_route():
+    global last_box_count
+    _read_gui()
+    _stop_all()
+    last_box_count = _box_count()
+    _log('Limit reached: %d. Returning to town.' % last_box_count, True)
+    _set_state('returning_to_town')
+    try:
+        start_script('use,returnscroll\n')
+    except Exception:
+        try:
+            use_return_scroll()
+        except Exception as ex:
+            _log('Return scroll failed: %s' % ex, True)
+            _set_state('idle')
+
+
+def _start_route():
+    global route_teleports
+    global route_start_wait_ms
+    _read_gui()
+    route_teleports = 0
+    equip_result = _equip_suit()
+    if not equip_result:
+        _set_state('idle')
+        return
+    _stop_all()
+    route_start_wait_ms = config.get('equip_wait_ms', 20000) if equip_result == 'equipped' else config.get('action_ms', 3500)
+    _set_state('starting_route')
+    if equip_result == 'equipped':
+        _log('Job suit just equipped. Waiting 20 seconds before script starts.', True)
+
+
+def _run_route_script():
+    global route_teleports
+    route_teleports = 0
+    try:
+        script = _route_script()
+        if not script:
+            _set_state('idle')
+            return
+        start_script(script)
+        _set_state('route_running')
+        _log('Caravan script started.', True)
+    except Exception as ex:
+        _error('Caravan script could not start: %s' % ex)
+        _set_state('idle')
+
+
+def _finish_route():
+    count = _box_count()
+    _log('Jangan check: %d boxes left. Suit will be unequipped and bot started after 20 seconds.' % count, True)
+    if not _unequip_suit():
+        return
+    _set_state('finishing')
+
+
+def _recover_if_dead_returned_to_jangan():
+    count = _box_count()
+    if count >= config.get('final_box_min', 20):
+        return False
+    if not _job_slot_item():
+        return False
+    if not _is_near_jangan():
+        return False
+
+    try:
+        stop_script()
+    except Exception:
+        pass
+    try:
+        stop_trade()
+    except Exception:
+        pass
+    _finish_route()
+    return True
+
+
+def _finish_after_suit():
+    if config.get('start_bot_after', True):
+        try:
+            start_bot()
+            _log('Bot started.', True)
+        except Exception as ex:
+            _log('Bot could not start: %s' % ex, True)
+    _set_state('idle')
+
+
+def btn_save_clicked():
+    _save_config()
+
+
+def btn_scan_clicked():
+    _read_gui()
+    _box_count(True)
+    if _job_slot_item():
+        QtBind.setText(gui, lblSuit, 'Suit: worn (%s)' % _job_slot_item().get('name', 'slot 8'))
+    else:
+        slot, item = _find_suit_slot()
+        QtBind.setText(gui, lblSuit, 'Suit: slot %s %s' % (slot, item.get('name', 'found')) if item else 'Suit: not found')
+
+
+def btn_start_clicked():
+    _read_gui()
+    config['enabled'] = True
+    QtBind.setChecked(gui, chkEnabled, True)
+    _save_config()
+    _set_status('monitoring')
+
+
+def btn_stop_clicked():
+    global state
+    state = 'idle'
+    config['enabled'] = False
+    QtBind.setChecked(gui, chkEnabled, False)
+    _save_config()
+    _set_status('stopped')
+
+
+def btn_run_route_clicked():
+    _start_route()
+
+
+def cbx_enabled_clicked(checked=None):
+    config['enabled'] = QtBind.isChecked(gui, chkEnabled)
+    _save_config()
+
+
+def cbx_start_bot_after_clicked(checked=None):
+    config['start_bot_after'] = QtBind.isChecked(gui, chkStartBotAfter)
+    _save_config()
+
+
+def cbx_route_thief_clicked(checked=None):
+    if QtBind.isChecked(gui, chkRouteThief):
+        QtBind.setChecked(gui, chkRouteHunter, False)
+        config['route_mode'] = 'Thief'
+    elif not QtBind.isChecked(gui, chkRouteHunter):
+        QtBind.setChecked(gui, chkRouteThief, True)
+        config['route_mode'] = 'Thief'
+    _save_config()
+
+
+def cbx_route_hunter_clicked(checked=None):
+    if QtBind.isChecked(gui, chkRouteHunter):
+        QtBind.setChecked(gui, chkRouteThief, False)
+        config['route_mode'] = 'Hunter'
+    elif not QtBind.isChecked(gui, chkRouteThief):
+        QtBind.setChecked(gui, chkRouteHunter, True)
+        config['route_mode'] = 'Hunter'
+    _save_config()
+
+
+def joined_game():
+    global state
+    global last_scan_at
+    global route_teleports
+
+    _load_config()
+    state = 'idle'
+    last_scan_at = 0
+    route_teleports = 0
+    if config.get('enabled', False):
+        _set_status('active: %s' % loaded_char_name)
+
+
+def disconnected():
+    global state
+    global last_scan_at
+    global route_teleports
+
+    state = 'idle'
+    last_scan_at = 0
+    route_teleports = 0
+
+
+def teleported():
+    global route_teleports
+    if state == 'returning_to_town':
+        _set_state('town_returned')
+    elif state == 'route_running':
+        route_teleports += 1
+        _log('Route teleport count: %d/%d' % (route_teleports, config.get('final_teleports', 3)), True)
+        if route_teleports >= config.get('final_teleports', 3):
+            _set_state('route_returned')
+
+
+def event_loop():
+    global last_scan_at
+    global last_town_guard_at
+    current_char = _character_name()
+    if current_char != loaded_char_name:
+        _load_config()
+
+    _read_gui()
+    now = _now()
+
+    if not config.get('enabled', False):
+        return
+
+    if state == 'idle':
+        if now - last_scan_at >= config.get('scan_ms', 60000):
+            last_scan_at = now
+            count = _box_count()
+            if count >= config.get('box_limit', 1):
+                _trigger_return_for_route()
+        return
+
+    if state == 'route_running':
+        if now - last_town_guard_at >= config.get('scan_ms', 60000):
+            last_town_guard_at = now
+            if _recover_if_dead_returned_to_jangan():
+                return
+
+    if state == 'town_returned' and now - action_at >= config.get('action_ms', 3500):
+        _start_route()
+        return
+
+    if state == 'starting_route':
+        wait_ms = route_start_wait_ms
+        if now - action_at < wait_ms:
+            _set_status('waiting after suit %d ms' % (wait_ms - (now - action_at)))
+            return
+        _run_route_script()
+        return
+
+    if state == 'route_returned' and now - action_at >= config.get('action_ms', 3500):
+        _finish_route()
+        return
+
+    if state == 'finishing':
+        wait_ms = config.get('unequip_wait_ms', 20000)
+        if now - action_at < wait_ms:
+            _set_status('waiting for suit unequip %d ms' % (wait_ms - (now - action_at)))
+            return
+        _finish_after_suit()
+
+
+_load_config()
+_box_count()
+log('[%s] v%s loaded.' % (pName, pVersion))

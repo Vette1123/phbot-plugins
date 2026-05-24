@@ -339,6 +339,10 @@ def randomMovement(radiusMax=10):
 
 # Follow a player using distance. Return success
 def start_follow(player,distance):
+	# Don't follow self (master sending FOLLOW would otherwise target himself)
+	me = get_character()
+	if me and me.get('name') == player:
+		return False
 	if party_player(player):
 		global followActivated,followPlayer,followDistance
 		followPlayer = player
@@ -427,6 +431,16 @@ def DismountPet(petType):
 # Terminate ridden transports (mounts, trade caravans, new job-system caravans, etc).
 # Whitelist: never touches grab ('pick') or attack pets ('attack','fellow').
 _KEEP_PET_TYPES = ('pick','attack','fellow')
+def _TerminatePetByType(petType):
+	# Re-fetch pets fresh so we use the current uid (it can change after dismount)
+	pets = get_pets()
+	if not pets:
+		return
+	for uid,pet in pets.items():
+		if pet['type'] == petType:
+			# CLIENT_PET_TERMINATE: uint32 pet UID
+			inject_joymax(0x7116,struct.pack('I',uid),False)
+			return
 def TerminatePet():
 	pets = get_pets()
 	count = 0
@@ -438,9 +452,9 @@ def TerminatePet():
 			p = b'\x00'
 			p += struct.pack('I',uid)
 			inject_joymax(0x70CB,p,False)
-			time.sleep(0.3)
-			# CLIENT_PET_TERMINATE: uint32 pet UID
-			inject_joymax(0x7116,struct.pack('I',uid),False)
+			# Defer the terminate so the dismount packet round-trips first
+			# (sleeping here would block the chat callback thread)
+			Timer(0.6, _TerminatePetByType, (pet['type'],)).start()
 			count += 1
 	return count
 
