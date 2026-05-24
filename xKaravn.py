@@ -21,8 +21,9 @@ gui = QtBind.init(__name__, pName)
 QtBind.createLabel(gui, 'xKaravn - Auto Caravan', 12, 12)
 chkEnabled = QtBind.createCheckBox(gui, 'cbx_enabled_clicked', 'Enabled', 12, 42)
 chkStartBotAfter = QtBind.createCheckBox(gui, 'cbx_start_bot_after_clicked', 'Start bot when done', 90, 42)
-chkRouteThief = QtBind.createCheckBox(gui, 'cbx_route_thief_clicked', 'Thief', 220, 42)
-chkRouteHunter = QtBind.createCheckBox(gui, 'cbx_route_hunter_clicked', 'Hunter', 280, 42)
+chkUnequipAfter = QtBind.createCheckBox(gui, 'cbx_unequip_after_clicked', 'Unequip when done', 220, 42)
+chkRouteThief = QtBind.createCheckBox(gui, 'cbx_route_thief_clicked', 'Thief', 350, 42)
+chkRouteHunter = QtBind.createCheckBox(gui, 'cbx_route_hunter_clicked', 'Hunter', 410, 42)
 
 QtBind.createLabel(gui, 'Goods item', 12, 74)
 txtBoxName = QtBind.createLineEdit(gui, DEFAULT_BOX_NAME, 95, 72, 150, 20)
@@ -526,6 +527,7 @@ use,returnscroll
 DEFAULT_CONFIG = {
     'enabled': False,
     'start_bot_after': True,
+    'unequip_after': True,
     'route_mode': 'Thief',
     'verbose_logs': False,
     'box_name': DEFAULT_BOX_NAME,
@@ -602,6 +604,7 @@ def _character_name():
 def _read_gui():
     config['enabled'] = QtBind.isChecked(gui, chkEnabled)
     config['start_bot_after'] = QtBind.isChecked(gui, chkStartBotAfter)
+    config['unequip_after'] = QtBind.isChecked(gui, chkUnequipAfter)
     config['route_mode'] = 'Hunter' if QtBind.isChecked(gui, chkRouteHunter) else 'Thief'
     config['box_name'] = QtBind.text(gui, txtBoxName).strip() or DEFAULT_BOX_NAME
     config['box_limit'] = _safe_int(QtBind.text(gui, txtBoxLimit), 1, 1)
@@ -615,6 +618,7 @@ def _read_gui():
 def _write_gui():
     QtBind.setChecked(gui, chkEnabled, bool(config.get('enabled', False)))
     QtBind.setChecked(gui, chkStartBotAfter, bool(config.get('start_bot_after', True)))
+    QtBind.setChecked(gui, chkUnequipAfter, bool(config.get('unequip_after', True)))
     QtBind.setChecked(gui, chkRouteThief, config.get('route_mode', 'Thief') != 'Hunter')
     QtBind.setChecked(gui, chkRouteHunter, config.get('route_mode', 'Thief') == 'Hunter')
     QtBind.setText(gui, txtBoxName, str(config.get('box_name', DEFAULT_BOX_NAME)))
@@ -940,6 +944,10 @@ def _run_route_script():
 
 def _finish_route():
     count = _box_count()
+    if not config.get('unequip_after', True):
+        _log('Jangan check: %d boxes left. Keeping suit on (Unequip when done disabled).' % count, True)
+        _finish_after_suit()
+        return
     _log('Jangan check: %d boxes left. Suit will be unequipped and bot started after 20 seconds.' % count, True)
     if not _unequip_suit():
         return
@@ -1019,6 +1027,11 @@ def cbx_enabled_clicked(checked=None):
 
 def cbx_start_bot_after_clicked(checked=None):
     config['start_bot_after'] = QtBind.isChecked(gui, chkStartBotAfter)
+    _save_config()
+
+
+def cbx_unequip_after_clicked(checked=None):
+    config['unequip_after'] = QtBind.isChecked(gui, chkUnequipAfter)
     _save_config()
 
 

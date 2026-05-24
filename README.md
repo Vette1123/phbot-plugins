@@ -141,7 +141,8 @@ Auto-Caravan controller. Watches your box count, equips the job suit, casts **Jo
 | Field | Default | Meaning |
 | --- | --- | --- |
 | **Enabled** | off | Master switch for the automation loop. |
-| **Start bot when done** | on | After the route finishes and the suit is unequipped, start the bot. |
+| **Start bot when done** | on | After the route finishes (and the suit is unequipped, if enabled), start the bot. |
+| **Unequip when done** | on | Unequip the job suit at the end of the route. Turn off to stay in suit (e.g. walk straight back to the same trade spot). |
 | **Thief / Hunter** | Thief | Which embedded route to run. |
 | **Goods item** | `Trader Sack Lv 4` | Substring match for the goods item to count (aliases include `special box`, `specialty goods`). |
 | **Run at boxes** | `1` | Run the route once box count reaches this value. |
