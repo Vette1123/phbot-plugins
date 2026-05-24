@@ -143,13 +143,13 @@ Auto-Caravan controller. Watches your box count, equips the job suit, casts **Jo
 | **Enabled** | off | Master switch for the automation loop. |
 | **Start bot when done** | on | After the route finishes and the suit is unequipped, start the bot. |
 | **Thief / Hunter** | Thief | Which embedded route to run. |
-| **Box name** | `Trader Sack Lv 4` | Substring match for the goods item to count (aliases include `special box`, `specialty goods`). |
-| **Return count** | `1` | Run the route once box count reaches this value. |
-| **Scan ms** | `60000` | Inventory scan interval while idle. |
-| **Job suit filter** | `Trader` | Substring used to find your job suit (e.g. `Trader`, `Hunter`, `Thief`). |
-| **Jangan min** | `20` | Minimum box count required to attempt the final Jangan run after teleports. |
-| **TP** | `3` | Final teleport hops allowed at end of route. |
-| **Action ms** | `3500` | Generic per-action delay (equip/unequip waits, etc.). |
+| **Goods item** | `Trader Sack Lv 4` | Substring match for the goods item to count (aliases include `special box`, `specialty goods`). |
+| **Run at boxes** | `1` | Run the route once box count reaches this value. |
+| **Scan (ms)** | `60000` | Inventory scan interval while idle. |
+| **Job suit** | `Trader` | Substring used to find your job suit (e.g. `Trader`, `Hunter`, `Thief`). |
+| **Min boxes** | `20` | Minimum box count required to attempt the final Jangan run after teleports. |
+| **Route TPs** | `3` | Final teleport hops allowed at end of route. |
+| **Action (ms)** | `3500` | Generic per-action delay (equip/unequip waits, etc.). |
 
 ### Buttons
 
