@@ -48,6 +48,7 @@ QtBind.createButton(gui, 'btn_scan_clicked', 'Scan', 82, 137)
 QtBind.createButton(gui, 'btn_start_clicked', 'Start', 142, 137)
 QtBind.createButton(gui, 'btn_stop_clicked', 'Stop', 212, 137)
 QtBind.createButton(gui, 'btn_run_route_clicked', 'Run script now', 292, 137)
+QtBind.createButton(gui, 'btn_reverse_now_clicked', 'Reverse now', 392, 137)
 
 lblBox = QtBind.createLabel(gui, 'Box: not read', 12, 177)
 lblSuit = QtBind.createLabel(gui, 'Suit: not read', 12, 202)
@@ -587,6 +588,22 @@ trader_pkt_settle_done_visit = False
 trader_pkt_last_start_at = 0
 trader_pkt_last_settle_at = 0
 
+reverse_pending = False
+reverse_last_pos = None
+reverse_stationary_since = 0
+reverse_started_at = 0
+
+REVERSE_MIN_RUN_MS = 30000
+REVERSE_STATIONARY_MS = 6000
+REVERSE_POS_TOLERANCE = 2.0
+REVERSE_HARD_TIMEOUT_MS = 30 * 60 * 1000
+
+RETURN_RETRY_MS = 20000
+RETURN_MAX_ATTEMPTS = 4
+
+return_attempts = 0
+return_last_try_at = 0
+
 
 def _now():
     return int(time.time() * 1000)
@@ -945,25 +962,110 @@ def _route_script():
     else:
         script = ROUTE_SCRIPT
     if config.get('reverse_after', False):
-        script = script.replace('use,returnscroll', 'use,reversereturnscroll')
+        script = script.replace('use,returnscroll\n', '').replace('use,returnscroll', '')
     return script
 
 
+def _fallback_return_to_training():
+    _log('Falling back to normal return scroll so bot can resume training.', True)
+    try:
+        start_script('use,returnscroll\n')
+        return True
+    except Exception as ex:
+        _log('Fallback start_script failed: %s' % ex, True)
+    try:
+        use_return_scroll()
+        return True
+    except Exception as ex:
+        _log('Fallback use_return_scroll failed: %s' % ex, True)
+    try:
+        start_bot()
+        _log('Last-resort fallback: starting bot in place so attacking can engage.', True)
+    except Exception as ex:
+        _log('Last-resort start_bot failed: %s' % ex, True)
+    return False
+
+
+def _fire_reverse_return():
+    global reverse_pending
+    reverse_pending = False
+    try:
+        ok = reverse_return(0, '')
+    except Exception as ex:
+        _log('Reverse return scroll failed: %s' % ex, True)
+        ok = False
+    if ok:
+        _log('Reverse return scroll used: teleporting to last recall point.', True)
+        _set_state('route_returned')
+        return True
+    _log('Reverse return scroll could not be used; falling back.', True)
+    _fallback_return_to_training()
+    _set_state('route_returned')
+    return False
+
+
+def _reverse_return_tick(now):
+    global reverse_last_pos, reverse_stationary_since
+    if now - reverse_started_at < REVERSE_MIN_RUN_MS:
+        return
+    if now - reverse_started_at >= REVERSE_HARD_TIMEOUT_MS:
+        _log('Reverse return hard timeout reached; firing fallback now.', True)
+        _fire_reverse_return()
+        return
+    try:
+        pos = get_position()
+    except Exception:
+        return
+    if not pos:
+        return
+    try:
+        x = float(pos.get('x', 0))
+        y = float(pos.get('y', 0))
+    except Exception:
+        return
+    if reverse_last_pos is None:
+        reverse_last_pos = (x, y)
+        reverse_stationary_since = now
+        return
+    lx, ly = reverse_last_pos
+    if abs(x - lx) > REVERSE_POS_TOLERANCE or abs(y - ly) > REVERSE_POS_TOLERANCE:
+        reverse_last_pos = (x, y)
+        reverse_stationary_since = now
+        return
+    if now - reverse_stationary_since >= REVERSE_STATIONARY_MS:
+        _fire_reverse_return()
+
+
+def _do_return_scroll():
+    global return_last_try_at, return_attempts
+    return_last_try_at = _now()
+    return_attempts += 1
+    ok = False
+    try:
+        start_script('use,returnscroll\n')
+        ok = True
+    except Exception as ex:
+        _log('Return script failed: %s' % ex, True)
+    if not ok:
+        try:
+            use_return_scroll()
+            ok = True
+        except Exception as ex:
+            _log('Return scroll API failed: %s' % ex, True)
+    _log('Return scroll attempt %d/%d issued.' % (return_attempts, RETURN_MAX_ATTEMPTS), True)
+    return ok
+
+
 def _trigger_return_for_route():
-    global last_box_count
+    global last_box_count, return_attempts, return_last_try_at
     _read_gui()
     _stop_all()
     last_box_count = _box_count()
     _log('Limit reached: %d. Returning to town.' % last_box_count, True)
     _set_state('returning_to_town')
-    try:
-        start_script('use,returnscroll\n')
-    except Exception:
-        try:
-            use_return_scroll()
-        except Exception as ex:
-            _log('Return scroll failed: %s' % ex, True)
-            _set_state('idle')
+    return_attempts = 0
+    return_last_try_at = 0
+    _do_return_scroll()
 
 
 def _start_route():
@@ -1114,7 +1216,12 @@ def _trader_packet_tick(now):
 
 def _run_route_script():
     global route_teleports, route_start_wait_ms
+    global reverse_pending, reverse_last_pos, reverse_stationary_since, reverse_started_at
     route_teleports = 0
+    reverse_pending = False
+    reverse_last_pos = None
+    reverse_stationary_since = 0
+    reverse_started_at = 0
     if not _job_slot_item():
         _log('Job suit not detected before script start; re-equipping.', True)
         if _equip_suit():
@@ -1132,6 +1239,12 @@ def _run_route_script():
         start_script(script)
         _set_state('route_running')
         _log('Caravan script started.', True)
+        if config.get('reverse_after', False):
+            reverse_pending = True
+            reverse_last_pos = None
+            reverse_stationary_since = 0
+            reverse_started_at = _now()
+            _log('Reverse return armed: will trigger after script ends.', True)
     except Exception as ex:
         _error('Caravan script could not start: %s' % ex)
         _set_state('idle')
@@ -1175,6 +1288,14 @@ def _recover_if_dead_returned_to_jangan():
 
 
 def _finish_after_suit():
+    if config.get('reverse_after', False):
+        try:
+            if reverse_return(0, ''):
+                _log('Finish: reverse return scroll used to go back to training area.', True)
+            else:
+                _log('Finish: reverse return scroll unavailable (no scroll or no recall point).', True)
+        except Exception as ex:
+            _log('Finish: reverse return scroll failed: %s' % ex, True)
     if config.get('start_bot_after', True):
         try:
             start_bot()
@@ -1221,6 +1342,23 @@ def btn_stop_clicked():
 
 def btn_run_route_clicked():
     _start_route()
+
+
+def btn_reverse_now_clicked():
+    _log('Manual reverse: stopping bot and using reverse return scroll.', True)
+    _stop_all()
+    try:
+        if reverse_return(0, ''):
+            _log('Reverse return scroll used. Bot will resume at recall point.', True)
+            try:
+                start_bot()
+                _log('Bot started (will engage after teleport completes).', True)
+            except Exception as ex:
+                _log('start_bot failed: %s' % ex, True)
+            return
+        _log('Reverse return scroll could not be used (no scroll or no recall point).', True)
+    except Exception as ex:
+        _log('Reverse return scroll failed: %s' % ex, True)
 
 
 def cbx_enabled_clicked(checked=None):
@@ -1281,8 +1419,17 @@ def joined_game():
     state = 'idle'
     last_scan_at = 0
     route_teleports = 0
-    if config.get('enabled', False):
-        _set_status('active: %s' % loaded_char_name)
+    if not config.get('enabled', False):
+        return
+    _set_status('active: %s' % loaded_char_name)
+    try:
+        last_scan_at = _now()
+        count = _box_count(True)
+        _log('Join scan: %d boxes (limit %d).' % (count, config.get('box_limit', 1)), True)
+        if count >= config.get('box_limit', 1):
+            _trigger_return_for_route()
+    except Exception as ex:
+        _log('Join scan failed: %s' % ex, True)
 
 
 def disconnected():
@@ -1300,6 +1447,9 @@ def teleported():
     if state == 'returning_to_town':
         _set_state('town_returned')
     elif state == 'route_running':
+        if reverse_pending:
+            _log('Gate teleport during route ignored (waiting for reverse return).', True)
+            return
         route_teleports += 1
         _log('Route teleport count: %d/%d' % (route_teleports, config.get('final_teleports', 3)), True)
         if route_teleports >= config.get('final_teleports', 3):
@@ -1327,12 +1477,28 @@ def event_loop():
                 _trigger_return_for_route()
         return
 
+    if state == 'returning_to_town':
+        if now - return_last_try_at >= RETURN_RETRY_MS:
+            if return_attempts >= RETURN_MAX_ATTEMPTS:
+                _log('Return scroll never teleported after %d attempts. Restarting bot in place so attacking can engage.' % return_attempts, True)
+                try:
+                    start_bot()
+                except Exception as ex:
+                    _log('Last-resort start_bot failed: %s' % ex, True)
+                _set_state('idle')
+            else:
+                _log('Return scroll didn\'t teleport yet; retrying.', True)
+                _do_return_scroll()
+        return
+
     if state == 'route_running':
         _trader_packet_tick(now)
         if now - last_town_guard_at >= config.get('scan_ms', 60000):
             last_town_guard_at = now
             if _recover_if_dead_returned_to_jangan():
                 return
+        if reverse_pending:
+            _reverse_return_tick(now)
 
     if state == 'town_returned' and now - action_at >= config.get('action_ms', 3500):
         _start_route()
