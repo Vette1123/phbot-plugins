@@ -705,6 +705,34 @@ def _armed(now):
     return True
 
 
+_bot_status_api_warned = False
+_bot_status_probed = False
+
+
+def _bot_is_running():
+    # Only auto-trigger the caravan when the user is actively botting.
+    # phBot exposes get_status() (undocumented). One-shot log of the raw return
+    # value the first time we call it, so we can confirm the truthiness mapping.
+    global _bot_status_api_warned, _bot_status_probed
+    fn = globals().get('get_status')
+    if not callable(fn):
+        if not _bot_status_api_warned:
+            _bot_status_api_warned = True
+            log('[%s] get_status() not available; auto-trigger gate disabled.' % pName)
+        return True
+    try:
+        value = fn()
+        if not _bot_status_probed:
+            _bot_status_probed = True
+            log('[%s] get_status() returned %r (type=%s)' % (pName, value, type(value).__name__))
+        return bool(value)
+    except Exception as ex:
+        if not _bot_status_api_warned:
+            _bot_status_api_warned = True
+            log('[%s] get_status() raised %s; treating bot as running.' % (pName, ex))
+        return True
+
+
 def _now():
     return int(time.time() * 1000)
 
@@ -1814,7 +1842,10 @@ def joined_game():
         count = _box_count(True)
         _log('Join scan: %d boxes (limit %d).' % (count, config.get('box_limit', 1)), True)
         if count >= config.get('box_limit', 1):
-            _trigger_return_for_route()
+            if not _bot_is_running():
+                _log('Join scan: pouch full but bot not running; waiting until botting.', True)
+            else:
+                _trigger_return_for_route()
     except Exception as ex:
         _log('Join scan failed: %s' % ex, True)
 
@@ -1906,12 +1937,18 @@ def event_loop():
             else:
                 empty_inventory_scans = 0
             if state == 'idle' and count >= limit:
+                if not _bot_is_running():
+                    _set_status('idle · pouch full, waiting for bot to start')
+                    return
                 log('[%s] Pouch full: %d / %d. Starting route.' % (pName, count, limit))
                 _trigger_return_for_route()
                 return
         if state == 'idle':
             remaining = scan_ms - (now - last_scan_at)
-            _set_status('idle · next scan %ds' % max(0, remaining // 1000))
+            if not _bot_is_running():
+                _set_status('idle · bot not running · next scan %ds' % max(0, remaining // 1000))
+            else:
+                _set_status('idle · next scan %ds' % max(0, remaining // 1000))
             return
 
     if state == 'returning_to_town':

@@ -151,6 +151,7 @@ Auto-Caravan controller with a live stats dashboard. Watches your pouch count, e
 - **Live stats dashboard** — runs completed, goods/h, stones/h, arena coins/h, gold/h (all rates derived from completed-run deltas, not extrapolated samples), avg & best run time, ETA to next pouch-full, session uptime, and a `↻ Reset Counters` button.
 - **Trader trade-lockdown** — once the trader role starts injecting target-trade packets, the plugin freezes all other actions (no teleports, no NPCs, no stop/start, no reverse) until the settle packet completes. Hard timeout 90s. Keeps the script running through `terminate,transport` → `use,returnscroll` naturally.
 - **Armed gate** — plugin only auto-acts while the character is at the configured training area, so it stays passive when you're idling in town.
+- **Bot-running gate** — auto-trigger only fires while phBot is actually botting (`get_status()` non-empty). If the bot is stopped, the plugin sits in `idle · bot not running` and waits — start the bot from phBot's main UI (or via `xControl`'s `START` chat command) and the next scan tick picks up the route. Manual buttons (`🚀 START`, `📜 Run script`, `CARAVAN GO`) are not gated.
 - **Robust scanning** — scans continue across all non-route states (not just `idle`), with empty-inventory backoff and edge-detected immediate rescans.
 - **xControl chat integration** — `CARAVAN ON/OFF/STATUS/SCAN/GO` from a party leader (authorized via xControl's leader list).
 - **Sort inventory before reverse** — calls phBot's `sort_inventory()` to compact items before the recall.
@@ -166,7 +167,7 @@ Auto-Caravan controller with a live stats dashboard. Watches your pouch count, e
 | **🎭 Role** | Thief | Which embedded route to run: `⚔ Thief` / `🏹 Hunter` / `💰 Trader`. The Trader route auto-target-trades via packet injection and force-stops at the destination. |
 | **📦 Goods item** | `Trader Sack Lv 4` | Substring match for the goods item to count (aliases include `special box`, `specialty goods`, `magic silverbag`). |
 | **Run at** | `1` | Run the route once pouch count reaches this value. |
-| **Scan (ms)** | `15000` | Inventory scan interval while idle. |
+| **Scan (ms)** | `30000` | Inventory scan interval while idle. |
 | **🚚 Job suit** | `Trader` | Substring used to find your job suit. |
 | **Min boxes** | `20` | Minimum pouch count required to attempt the final Jangan run after teleports. |
 | **Route TPs** | `3` | Final teleport hops allowed at end of route. |

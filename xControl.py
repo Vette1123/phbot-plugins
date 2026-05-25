@@ -677,23 +677,12 @@ def handle_chat(t,player,msg):
 	# Remove guild name from union chat messages
 	if t == 11:
 		msg = msg.split(': ',1)[1]
-	# Only suppress self-echo for commands that would break the running script
-	# (STOP halts the bot/script; START/DC/TERMINATE/PROFILE are likewise destructive).
-	# Other commands like GETOUT, RETURN, MOUNT, etc. are allowed to act on ourselves.
-	_selfEchoSuppressList = {'STOP','START','DC','TERMINATE','NOFOLLOW','NOTRACE'}
+	# Track our own outgoing chat so we don't double-process, but let the leader
+	# execute every command on himself. FOLLOW 0 self-target is blocked inside
+	# start_follow, not here.
 	key = (t, msg)
 	if key in _selfSentChat:
 		_selfSentChat.remove(key)
-		if msg in _selfEchoSuppressList:
-			return
-	else:
-		# Also handle name-match case for the suppress list
-		try:
-			me = get_character_data()
-			if me and player and player == me['name'] and msg in _selfEchoSuppressList:
-				return
-		except:
-			pass
 	# Check player at leader list or a Discord message
 	if player and lstLeaders_exist(player) or t == 100:
 		# Parsing message command
