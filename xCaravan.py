@@ -5,36 +5,42 @@ import os
 import struct
 import time
 
-pName = 'xKaravn'
+pName = 'xCaravan'
 pVersion = '1.0.0'
-pAuthor = 'xKaravn'
+pAuthor = 'xCaravan'
 pUrl = ''
 
 DEFAULT_BOX_NAME = 'Trader Sack Lv 4'
 BOX_NAME_ALIASES = {
-    'trader sack lv 4': ('special box', 'specialty goods'),
-    'special box': ('specialty goods',)
+    'trader sack lv 4': ('special box', 'specialty goods', 'magic silverbag', 'trade trader 04'),
+    'special box': ('specialty goods',),
+    'magic silverbag': ('trade trader 04',)
 }
 
 gui = QtBind.init(__name__, pName)
 
-QtBind.createLabel(gui, 'xKaravn - Auto Caravan', 12, 12)
-chkEnabled = QtBind.createCheckBox(gui, 'cbx_enabled_clicked', 'Enabled', 12, 42)
-chkStartBotAfter = QtBind.createCheckBox(gui, 'cbx_start_bot_after_clicked', 'Start bot when done', 90, 42)
-chkUnequipAfter = QtBind.createCheckBox(gui, 'cbx_unequip_after_clicked', 'Unequip when done', 220, 42)
-chkRouteThief = QtBind.createCheckBox(gui, 'cbx_route_thief_clicked', 'Thief', 350, 42)
-chkRouteHunter = QtBind.createCheckBox(gui, 'cbx_route_hunter_clicked', 'Hunter', 410, 42)
-chkRouteTrader = QtBind.createCheckBox(gui, 'cbx_route_trader_clicked', 'Trader', 470, 42)
-chkReverseAfter = QtBind.createCheckBox(gui, 'cbx_reverse_after_clicked', 'Reverse to recall when done', 540, 42)
+_PAD = ' ' * 160
 
-QtBind.createLabel(gui, 'Goods item', 12, 74)
-txtBoxName = QtBind.createLineEdit(gui, DEFAULT_BOX_NAME, 95, 72, 150, 20)
-QtBind.createLabel(gui, 'Run at boxes', 255, 74)
-txtBoxLimit = QtBind.createLineEdit(gui, '1', 340, 72, 40, 20)
-QtBind.createLabel(gui, 'Scan (ms)', 390, 74)
-txtScanMs = QtBind.createLineEdit(gui, '60000', 450, 72, 65, 20)
+QtBind.createLabel(gui, '🚛  xCaravan  —  Auto Caravan  ' + ('═' * 80), 12, 8)
 
-QtBind.createLabel(gui, 'Job suit', 12, 104)
+chkEnabled = QtBind.createCheckBox(gui, 'cbx_enabled_clicked', '🟢  ENABLE  PLUGIN  🟢', 12, 30)
+chkStartBotAfter = QtBind.createCheckBox(gui, 'cbx_start_bot_after_clicked', '🤖 Start bot after', 200, 30)
+chkUnequipAfter = QtBind.createCheckBox(gui, 'cbx_unequip_after_clicked', '🧺 Unequip after', 345, 30)
+chkReverseAfter = QtBind.createCheckBox(gui, 'cbx_reverse_after_clicked', '🌀 Reverse to recall after', 480, 30)
+
+QtBind.createLabel(gui, '🎭 Role:', 12, 56)
+chkRouteThief = QtBind.createCheckBox(gui, 'cbx_route_thief_clicked', '⚔ Thief', 65, 54)
+chkRouteHunter = QtBind.createCheckBox(gui, 'cbx_route_hunter_clicked', '🏹 Hunter', 135, 54)
+chkRouteTrader = QtBind.createCheckBox(gui, 'cbx_route_trader_clicked', '💰 Trader', 220, 54)
+
+QtBind.createLabel(gui, '📦 Goods item', 12, 80)
+txtBoxName = QtBind.createLineEdit(gui, DEFAULT_BOX_NAME, 95, 78, 150, 20)
+QtBind.createLabel(gui, 'Run at', 255, 80)
+txtBoxLimit = QtBind.createLineEdit(gui, '1', 300, 78, 40, 20)
+QtBind.createLabel(gui, 'Scan (ms)', 350, 80)
+txtScanMs = QtBind.createLineEdit(gui, '15000', 410, 78, 60, 20)
+
+QtBind.createLabel(gui, '🚚 Job suit', 12, 104)
 txtSuitFilter = QtBind.createLineEdit(gui, 'Trader', 95, 102, 150, 20)
 QtBind.createLabel(gui, 'Min boxes', 255, 104)
 txtFinalBoxMin = QtBind.createLineEdit(gui, '20', 325, 102, 40, 20)
@@ -43,16 +49,30 @@ txtFinalTeleports = QtBind.createLineEdit(gui, '3', 440, 102, 35, 20)
 QtBind.createLabel(gui, 'Action (ms)', 485, 104)
 txtActionMs = QtBind.createLineEdit(gui, '3500', 550, 102, 55, 20)
 
-QtBind.createButton(gui, 'btn_save_clicked', 'Save', 12, 137)
-QtBind.createButton(gui, 'btn_scan_clicked', 'Scan', 100, 137)
-QtBind.createButton(gui, 'btn_start_clicked', 'Start', 188, 137)
-QtBind.createButton(gui, 'btn_stop_clicked', 'Stop', 276, 137)
-QtBind.createButton(gui, 'btn_run_route_clicked', 'Run script now', 364, 137)
-QtBind.createButton(gui, 'btn_reverse_now_clicked', 'Reverse now', 480, 137)
+QtBind.createButton(gui, 'btn_save_clicked', '💾  Save', 12, 130)
+QtBind.createButton(gui, 'btn_scan_clicked', '🔎  Scan', 95, 130)
+QtBind.createButton(gui, 'btn_start_clicked', '🚀  START', 180, 130)
+QtBind.createButton(gui, 'btn_stop_clicked', '🛑  STOP', 275, 130)
+QtBind.createButton(gui, 'btn_run_route_clicked', '📜  Run script', 360, 130)
+QtBind.createButton(gui, 'btn_reverse_now_clicked', '🌀  Reverse now', 470, 130)
 
-lblBox = QtBind.createLabel(gui, 'Box: not read', 12, 177)
-lblSuit = QtBind.createLabel(gui, 'Suit: not read', 12, 202)
-lblStatus = QtBind.createLabel(gui, 'Status: loading...', 12, 227)
+QtBind.createLabel(gui, '━━ Status ' + ('━' * 110), 12, 162)
+lblBox = QtBind.createLabel(gui, '📦 Box: not read' + _PAD, 12, 184)
+lblSuit = QtBind.createLabel(gui, '👕 Suit: not read' + _PAD, 12, 210)
+lblStatus = QtBind.createLabel(gui, '⏺ Status: loading…' + _PAD, 12, 236)
+
+_STAT_PAD = ' ' * 40
+lblStatGoodsPerHour = QtBind.createLabel(gui, '📊 Goods/h: 0' + _STAT_PAD, 12, 262)
+lblStatNextTrade = QtBind.createLabel(gui, '⏱ Next: --:--' + _STAT_PAD, 165, 262)
+lblStatRuns = QtBind.createLabel(gui, '🏁 Runs: 0' + _STAT_PAD, 320, 262)
+lblStatAvgRun = QtBind.createLabel(gui, '⌛ Avg: 0m' + _STAT_PAD, 420, 262)
+lblStatBestRun = QtBind.createLabel(gui, '⭐ Best: --' + _STAT_PAD, 520, 262)
+
+lblStatStones = QtBind.createLabel(gui, '💎 Stones: 0' + _STAT_PAD, 12, 284)
+lblStatArena = QtBind.createLabel(gui, '🪙 Arena: 0' + _STAT_PAD, 165, 284)
+lblStatGold = QtBind.createLabel(gui, '💰 Gold: 0' + _STAT_PAD, 320, 284)
+lblStatUptime = QtBind.createLabel(gui, '⏲ Up: 0m' + _STAT_PAD, 520, 284)
+QtBind.createButton(gui, 'btn_reset_stats_clicked', '↻ Reset', 595, 282)
 
 ROUTE_SCRIPT = '''walk,6430,1099,-32
 walk,6428,1113,0
@@ -559,7 +579,7 @@ DEFAULT_CONFIG = {
     'verbose_logs': False,
     'box_name': DEFAULT_BOX_NAME,
     'box_limit': 1,
-    'scan_ms': 60000,
+    'scan_ms': 15000,
     'suit_filter': 'Trader',
     'final_box_min': 20,
     'final_teleports': 3,
@@ -608,6 +628,84 @@ RETURN_MAX_ATTEMPTS = 4
 return_attempts = 0
 return_last_try_at = 0
 
+trade_lockdown_until = 0
+last_bot_status = -1
+empty_inventory_scans = 0
+_training_area_warned = False
+
+stats_started_at = 0
+stats_runs = 0
+stats_run_durations_ms = []
+stats_current_run_started_at = 0
+stats_baseline_gold = None
+stats_baseline_stones = None
+stats_baseline_arena = None
+stats_last_ui_update = 0
+stats_fill_samples = []
+stats_last_seen_count = -1
+stats_last_empty_at = 0
+stats_known_fill_ms = 0
+stats_total_boxes_returned = 0
+STONE_FILTERS = ('magic stone', 'astral stone', 'stone of', 'devil stone', 'lucky stone', 'tablet')
+ARENA_FILTERS = ('arena coin', 'arena point')
+
+ROUTE_ACTIVE_STATES = {
+    'starting_route', 'route_running', 'returning_to_town',
+    'awaiting_reverse_teleport', 'town_returned', 'route_returned', 'finishing',
+    'reverse_completed'
+}
+
+TRADER_LOCKDOWN_MS = 90000
+
+
+def _trade_locked(now):
+    return now < trade_lockdown_until
+
+
+def _at_training_area():
+    global _training_area_warned
+    fn = globals().get('get_training_area')
+    area = None
+    if callable(fn):
+        try:
+            area = fn()
+        except Exception:
+            area = None
+    if area:
+        try:
+            pos = get_position()
+        except Exception:
+            pos = None
+        if not pos:
+            return False
+        try:
+            px = float(pos.get('x', 0))
+            py = float(pos.get('y', 0))
+        except Exception:
+            return False
+        try:
+            if isinstance(area, dict):
+                ax = float(area.get('x', area.get('center_x', 0)))
+                ay = float(area.get('y', area.get('center_y', 0)))
+                ar = float(area.get('radius', area.get('r', 35)))
+            else:
+                ax = float(area[0]); ay = float(area[1]); ar = float(area[2])
+        except Exception:
+            return False
+        dx = px - ax
+        dy = py - ay
+        return (dx * dx + dy * dy) <= (ar * ar)
+    if not _training_area_warned:
+        _training_area_warned = True
+        _log('get_training_area unavailable; falling back to bot-status only.', True)
+    return True
+
+
+def _armed(now):
+    if state in ROUTE_ACTIVE_STATES:
+        return True
+    return _at_training_area()
+
 
 def _now():
     return int(time.time() * 1000)
@@ -620,8 +718,50 @@ def _normalize(value):
     return ' '.join(text.split())
 
 
+STATUS_GLYPHS = (
+    ('lockdown', '🔒'),
+    ('trade', '💱'),
+    ('paused', '⏸'),
+    ('disabled', '⚪'),
+    ('stopped', '⛔'),
+    ('idle', '⏺'),
+    ('monitoring', '🟢'),
+    ('scan', '🔎'),
+    ('route', '🚚'),
+    ('return', '↩'),
+    ('reverse', '↺'),
+    ('finish', '🏁'),
+    ('wait', '⏳'),
+    ('start', '▶'),
+    ('error', '⚠'),
+)
+
+
+def _status_glyph(message):
+    m = str(message).lower()
+    for key, glyph in STATUS_GLYPHS:
+        if key in m:
+            return glyph
+    return '•'
+
+
 def _set_status(message):
-    QtBind.setText(gui, lblStatus, 'Status: ' + str(message))
+    glyph = _status_glyph(message)
+    QtBind.setText(gui, lblStatus, '%s Status: %s%s' % (glyph, str(message), _PAD))
+
+
+def _set_suit(text):
+    t = str(text)
+    low = t.lower()
+    if 'worn' in low or 'equipping' in low:
+        glyph = '👕'
+    elif 'not found' in low or 'no empty' in low or 'not worn' in low:
+        glyph = '⚪'
+    elif 'unequipping' in low:
+        glyph = '↩'
+    else:
+        glyph = '·'
+    QtBind.setText(gui, lblSuit, '%s %s%s' % (glyph, t, _PAD))
 
 
 def _log(message, force=False):
@@ -631,6 +771,185 @@ def _log(message, force=False):
 
 def _error(message):
     log('[%s] %s' % (pName, message))
+
+
+def _count_items_matching(filters):
+    total = 0
+    try:
+        inv = get_inventory()
+        items = (inv or {}).get('items') or []
+    except Exception:
+        items = []
+    for item in items:
+        if not item:
+            continue
+        name = _normalize(item.get('name') or item.get('servername') or '')
+        if any(f in name for f in filters):
+            total += int(item.get('quantity', 1) or 1)
+    return total
+
+
+def _current_gold():
+    try:
+        inv = get_inventory()
+        return int((inv or {}).get('gold', 0) or 0)
+    except Exception:
+        return 0
+
+
+def _stats_init_baseline():
+    global stats_baseline_gold, stats_baseline_stones, stats_baseline_arena
+    if stats_baseline_gold is None:
+        stats_baseline_gold = _current_gold()
+    if stats_baseline_stones is None:
+        stats_baseline_stones = _count_items_matching(STONE_FILTERS)
+    if stats_baseline_arena is None:
+        stats_baseline_arena = _count_items_matching(ARENA_FILTERS)
+
+
+def _stats_record_run_complete():
+    global stats_runs, stats_current_run_started_at, stats_total_boxes_returned, stats_last_empty_at
+    if stats_current_run_started_at <= 0:
+        return
+    dur = _now() - stats_current_run_started_at
+    if dur > 0:
+        stats_run_durations_ms.append(dur)
+        if len(stats_run_durations_ms) > 50:
+            del stats_run_durations_ms[:-50]
+    stats_runs += 1
+    stats_total_boxes_returned += last_box_count if last_box_count > 0 else config.get('box_limit', 1)
+    stats_current_run_started_at = 0
+    stats_last_empty_at = _now()
+
+
+def _format_hms(ms):
+    if ms <= 0:
+        return '0m'
+    s = ms // 1000
+    h = s // 3600
+    m = (s % 3600) // 60
+    if h > 0:
+        return '%dh%02dm' % (h, m)
+    return '%dm' % m
+
+
+def _format_countdown(ms):
+    if ms <= 0:
+        return 'now'
+    s = ms // 1000
+    h = s // 3600
+    m = (s % 3600) // 60
+    sec = s % 60
+    if h > 0:
+        return '%d:%02d:%02d' % (h, m, sec)
+    return '%02d:%02d' % (m, sec)
+
+
+def _stats_sample_fill(now, count):
+    global stats_last_seen_count, stats_known_fill_ms, stats_last_empty_at
+    if state in ROUTE_ACTIVE_STATES:
+        stats_last_seen_count = -1
+        return
+    limit = config.get('box_limit', 1)
+    if stats_last_seen_count >= 0 and count < stats_last_seen_count:
+        stats_last_empty_at = now
+    if stats_last_seen_count >= 0 and stats_last_seen_count < limit and count >= limit:
+        if stats_last_empty_at > 0:
+            stats_known_fill_ms = now - stats_last_empty_at
+    stats_last_seen_count = count
+
+
+def _compact_num(n):
+    n = int(n)
+    if n < 1000:
+        return str(n)
+    if n < 1000000:
+        return '%.1fk' % (n / 1000.0)
+    if n < 1000000000:
+        return '%.1fM' % (n / 1000000.0)
+    return '%.1fB' % (n / 1000000000.0)
+
+
+def _stats_update_ui(now):
+    global stats_last_ui_update
+    if now - stats_last_ui_update < 1000:
+        return
+    stats_last_ui_update = now
+
+    uptime_ms = now - stats_started_at if stats_started_at else 0
+    hours = uptime_ms / 3600000.0 if uptime_ms > 0 else 0
+    has_data = stats_runs >= 1
+
+    if has_data and hours > 0.0167:
+        goods_per_hour = int(stats_total_boxes_returned / hours)
+        stones_h = int(max(0, _count_items_matching(STONE_FILTERS) - (stats_baseline_stones or 0)) / hours)
+        arena_h = int(max(0, _count_items_matching(ARENA_FILTERS) - (stats_baseline_arena or 0)) / hours)
+        gold_h = int(max(0, _current_gold() - (stats_baseline_gold or 0)) / hours)
+    else:
+        goods_per_hour = stones_h = arena_h = gold_h = -1
+
+    if state in ROUTE_ACTIVE_STATES:
+        next_trade = 'in route'
+    elif not config.get('enabled', False):
+        next_trade = 'off'
+    elif _trade_locked(now) and config.get('route_mode') == 'Trader':
+        next_trade = 'locked'
+    elif stats_known_fill_ms <= 0:
+        next_trade = 'after 1st run'
+    elif stats_last_empty_at <= 0:
+        next_trade = 'pouch full'
+    else:
+        remaining = stats_known_fill_ms - (now - stats_last_empty_at)
+        next_trade = _format_countdown(remaining) if remaining > 0 else 'pouch full'
+
+    avg_ms = sum(stats_run_durations_ms) // len(stats_run_durations_ms) if stats_run_durations_ms else 0
+    best_ms = min(stats_run_durations_ms) if stats_run_durations_ms else 0
+
+    stones_total = max(0, _count_items_matching(STONE_FILTERS) - (stats_baseline_stones or 0))
+    arena_total = max(0, _count_items_matching(ARENA_FILTERS) - (stats_baseline_arena or 0))
+    gold_total = max(0, _current_gold() - (stats_baseline_gold or 0))
+
+    rate_tag = lambda v: ('--' if v < 0 else str(v))
+    rate_tag_g = lambda v: ('--' if v < 0 else _compact_num(v))
+
+    QtBind.setText(gui, lblStatGoodsPerHour, '📊 Goods/h: %s%s' % (rate_tag(goods_per_hour), _STAT_PAD))
+    QtBind.setText(gui, lblStatNextTrade, '⏱ Next: %s%s' % (next_trade, _STAT_PAD))
+    QtBind.setText(gui, lblStatRuns, '🏁 Runs: %d%s' % (stats_runs, _STAT_PAD))
+    QtBind.setText(gui, lblStatAvgRun, '⌛ Avg: %s%s' % (_format_hms(avg_ms), _STAT_PAD))
+    QtBind.setText(gui, lblStatBestRun, '⭐ Best: %s%s' % (_format_hms(best_ms) if best_ms else '--', _STAT_PAD))
+    QtBind.setText(gui, lblStatStones, '💎 Stones: %d (%s/h)%s' % (stones_total, rate_tag(stones_h), _STAT_PAD))
+    QtBind.setText(gui, lblStatArena, '🪙 Arena: %d (%s/h)%s' % (arena_total, rate_tag(arena_h), _STAT_PAD))
+    QtBind.setText(gui, lblStatGold, '💰 Gold: %s (%s/h)%s' % (_compact_num(gold_total), rate_tag_g(gold_h), _STAT_PAD))
+    QtBind.setText(gui, lblStatUptime, '⏲ Up: %s%s' % (_format_hms(uptime_ms), _STAT_PAD))
+
+
+def btn_reset_stats_clicked():
+    global stats_started_at, stats_runs, stats_baseline_gold
+    global stats_baseline_stones, stats_baseline_arena, stats_current_run_started_at
+    global stats_total_boxes_returned, stats_known_fill_ms, stats_last_empty_at, stats_last_seen_count
+    stats_started_at = _now()
+    stats_runs = 0
+    del stats_run_durations_ms[:]
+    stats_baseline_gold = _current_gold()
+    stats_baseline_stones = _count_items_matching(STONE_FILTERS)
+    stats_baseline_arena = _count_items_matching(ARENA_FILTERS)
+    stats_current_run_started_at = 0
+    stats_total_boxes_returned = 0
+    stats_known_fill_ms = 0
+    stats_last_empty_at = _now()
+    stats_last_seen_count = -1
+    _stats_update_ui(_now())
+    log('[%s] Stats reset.' % pName)
+
+
+def _sort_inventory():
+    try:
+        ok = sort_inventory()
+        log('[%s] sort_inventory() -> %s' % (pName, ok))
+        return bool(ok)
+    except Exception as ex:
+        log('[%s] sort_inventory() failed: %s' % (pName, ex))
+        return False
 
 
 def _safe_int(value, default_value, minimum_value):
@@ -670,7 +989,7 @@ def _read_gui():
         config['route_mode'] = 'Thief'
     config['box_name'] = QtBind.text(gui, txtBoxName).strip() or DEFAULT_BOX_NAME
     config['box_limit'] = _safe_int(QtBind.text(gui, txtBoxLimit), 1, 1)
-    config['scan_ms'] = _safe_int(QtBind.text(gui, txtScanMs), 60000, 1000)
+    config['scan_ms'] = _safe_int(QtBind.text(gui, txtScanMs), 15000, 1000)
     config['suit_filter'] = QtBind.text(gui, txtSuitFilter).strip() or 'Trader'
     config['final_box_min'] = _safe_int(QtBind.text(gui, txtFinalBoxMin), 20, 1)
     config['final_teleports'] = _safe_int(QtBind.text(gui, txtFinalTeleports), 3, 1)
@@ -688,7 +1007,7 @@ def _write_gui():
     QtBind.setChecked(gui, chkRouteTrader, mode == 'Trader')
     QtBind.setText(gui, txtBoxName, str(config.get('box_name', DEFAULT_BOX_NAME)))
     QtBind.setText(gui, txtBoxLimit, str(config.get('box_limit', 1)))
-    QtBind.setText(gui, txtScanMs, str(config.get('scan_ms', 60000)))
+    QtBind.setText(gui, txtScanMs, str(config.get('scan_ms', 15000)))
     QtBind.setText(gui, txtSuitFilter, str(config.get('suit_filter', 'Trader')))
     QtBind.setText(gui, txtFinalBoxMin, str(config.get('final_box_min', 20)))
     QtBind.setText(gui, txtFinalTeleports, str(config.get('final_teleports', 3)))
@@ -711,8 +1030,8 @@ def _load_config():
             _error('Could not read config: %s' % ex)
     if _normalize(config.get('box_name')) == 'special box':
         config['box_name'] = DEFAULT_BOX_NAME
-    if config.get('scan_ms') == 5000:
-        config['scan_ms'] = 60000
+    if config.get('scan_ms') in (5000, 60000):
+        config['scan_ms'] = 15000
     if config.get('final_box_min') == 50:
         config['final_box_min'] = 20
     _write_gui()
@@ -813,17 +1132,23 @@ def _box_count(debug=False):
                 names.append('%s:%s' % (source_name, qty))
 
     if debug and total == 0:
-        _log('Box not found. Filter: %s | Items seen: %s' % (
+        log('[%s] Box not found. Filter: %s | Items seen: %s' % (
+            pName,
             ', '.join(box_filters),
             ' | '.join(seen_names[:12]) if seen_names else 'no items read'
-        ), True)
+        ))
 
-    QtBind.setText(gui, lblBox, 'Box: %d / return %d / min %d %s' % (
+    limit = config.get('box_limit', 1)
+    glyph = '🟢' if total >= limit else ('🟡' if total > 0 else '⚪')
+    QtBind.setText(gui, lblBox, '%s Pouch: %d / %d  (route at %d · min %d)%s' % (
+        glyph,
         total,
-        config.get('box_limit', 1),
+        limit,
+        limit,
         config.get('final_box_min', 70),
-        ', '.join(names[:4])
+        _PAD
     ))
+    _stats_sample_fill(_now(), total)
     return total
 
 
@@ -894,34 +1219,34 @@ def _move_item(source_slot, target_slot, name):
 def _equip_suit():
     current = _job_slot_item()
     if current:
-        QtBind.setText(gui, lblSuit, 'Suit: already worn (%s)' % current.get('name', 'slot 8'))
+        _set_suit('Suit: already worn (%s)' % current.get('name', 'slot 8'))
         return 'already'
 
     slot, item = _find_suit_slot()
     if slot < 0 or not item:
-        QtBind.setText(gui, lblSuit, 'Suit: not found')
+        _set_suit('Suit: not found')
         _log('Job suit not found. Filter: %s' % config.get('suit_filter', 'Trader'), True)
         return False
 
     _move_item(slot, 8, item.get('name', 'job suit'))
-    QtBind.setText(gui, lblSuit, 'Suit: equipping (%s)' % item.get('name', 'job suit'))
+    _set_suit('Suit: equipping (%s)' % item.get('name', 'job suit'))
     return 'equipped'
 
 
 def _unequip_suit():
     item = _job_slot_item()
     if not item:
-        QtBind.setText(gui, lblSuit, 'Suit: not worn')
+        _set_suit('Suit: not worn')
         return True
 
     slot = _empty_slot()
     if slot < 0:
         _log('No empty inventory slot to unequip suit.', True)
-        QtBind.setText(gui, lblSuit, 'Suit: no empty slot')
+        _set_suit('Suit: no empty slot')
         return False
 
     _move_item(8, slot, item.get('name', 'job suit'))
-    QtBind.setText(gui, lblSuit, 'Suit: unequipping')
+    _set_suit('Suit: unequipping')
     return True
 
 
@@ -1004,6 +1329,7 @@ def _fire_reverse_return():
         stop_trade()
     except Exception:
         pass
+    _sort_inventory()
     try:
         ok = reverse_return(0, '')
     except Exception as ex:
@@ -1081,6 +1407,7 @@ def _do_return_scroll():
 
 def _trigger_return_for_route():
     global last_box_count, return_attempts, return_last_try_at
+    global stats_current_run_started_at
     _read_gui()
     _stop_all()
     last_box_count = _box_count()
@@ -1088,6 +1415,8 @@ def _trigger_return_for_route():
     _set_state('returning_to_town')
     return_attempts = 0
     return_last_try_at = 0
+    stats_current_run_started_at = _now()
+    _stats_init_baseline()
     _do_return_scroll()
 
 
@@ -1175,6 +1504,7 @@ def _trader_packet_tick(now):
     global trader_pkt_stage_at, trader_pkt_settle_arrived_at
     global trader_pkt_start_done_visit, trader_pkt_settle_done_visit
     global trader_pkt_last_start_at, trader_pkt_last_settle_at
+    global trade_lockdown_until
 
     if config.get('route_mode', 'Thief') != 'Trader':
         return
@@ -1200,7 +1530,8 @@ def _trader_packet_tick(now):
             trader_pkt_last_start_at = now
             trader_pkt_start_stage = 1
             trader_pkt_stage_at = now
-            _log('Trader: transport summoned, talking to start NPC.', True)
+            trade_lockdown_until = now + TRADER_LOCKDOWN_MS
+            _log('Trader: transport summoned, talking to start NPC. Lockdown ON.', True)
 
     if trader_pkt_start_stage == 1 and now - trader_pkt_stage_at >= TRADER_PACKET_DELAY_AFTER_READY:
         _trader_inject(TRADER_PACKET_START_TALK[0], TRADER_PACKET_START_TALK[1], 'start talk')
@@ -1228,13 +1559,17 @@ def _trader_packet_tick(now):
         _trader_inject(TRADER_PACKET_SETTLE_TALK[0], TRADER_PACKET_SETTLE_TALK[1], 'settle talk')
         trader_pkt_settle_stage = 2
         trader_pkt_stage_at = now
+        trade_lockdown_until = now + TRADER_LOCKDOWN_MS
     elif trader_pkt_settle_stage == 2 and now - trader_pkt_stage_at >= TRADER_PACKET_DELAY_BETWEEN:
         _trader_inject(TRADER_PACKET_SETTLE_CONFIRM[0], TRADER_PACKET_SETTLE_CONFIRM[1], 'settle confirm')
         trader_pkt_settle_stage = 3
         trader_pkt_stage_at = now
+        trade_lockdown_until = now + TRADER_LOCKDOWN_MS
     elif trader_pkt_settle_stage == 3 and now - trader_pkt_stage_at >= TRADER_PACKET_DELAY_CLOSE:
         _trader_inject(TRADER_PACKET_SETTLE_CLOSE[0], TRADER_PACKET_SETTLE_CLOSE[1], 'settle close')
         trader_pkt_settle_stage = 0
+        trade_lockdown_until = 0
+        _log('Trader: settle close fired. Lockdown OFF.', True)
 
 
 def _run_route_script():
@@ -1274,6 +1609,7 @@ def _run_route_script():
 
 
 def _finish_route():
+    _stats_record_run_complete()
     count = _box_count()
     if config.get('reverse_after', False):
         # Reverse return was already issued by _fire_reverse_return after the
@@ -1346,14 +1682,19 @@ def btn_save_clicked():
     _save_config()
 
 
-def btn_scan_clicked():
+def _sync_scan(debug=True):
     _read_gui()
-    _box_count(True)
+    count = _box_count(debug)
     if _job_slot_item():
-        QtBind.setText(gui, lblSuit, 'Suit: worn (%s)' % _job_slot_item().get('name', 'slot 8'))
+        _set_suit('Suit: worn (%s)' % _job_slot_item().get('name', 'slot 8'))
     else:
         slot, item = _find_suit_slot()
-        QtBind.setText(gui, lblSuit, 'Suit: slot %s %s' % (slot, item.get('name', 'found')) if item else 'Suit: not found')
+        _set_suit('Suit: slot %s %s' % (slot, item.get('name', 'found')) if item else 'Suit: not found')
+    return count
+
+
+def btn_scan_clicked():
+    _sync_scan(True)
 
 
 def btn_start_clicked():
@@ -1481,6 +1822,9 @@ def disconnected():
 
 def teleported():
     global route_teleports
+    if _trade_locked(_now()) and config.get('route_mode') == 'Trader':
+        _log('[lockdown] teleport ignored', True)
+        return
     if state == 'returning_to_town':
         _set_state('town_returned')
     elif state == 'awaiting_reverse_teleport':
@@ -1510,23 +1854,63 @@ def event_loop():
     global last_scan_at
     global last_town_guard_at
     global reverse_last_stop_at
+    global empty_inventory_scans
+    global trade_lockdown_until
     current_char = _character_name()
     if current_char != loaded_char_name:
+        gui_enabled_pre = QtBind.isChecked(gui, chkEnabled)
         _load_config()
+        if QtBind.isChecked(gui, chkEnabled) != gui_enabled_pre:
+            QtBind.setChecked(gui, chkEnabled, gui_enabled_pre)
+            config['enabled'] = gui_enabled_pre
 
     _read_gui()
     now = _now()
 
+    global stats_started_at
+    if stats_started_at == 0:
+        stats_started_at = now
+    _stats_update_ui(now)
+
     if not config.get('enabled', False):
         return
 
-    if state == 'idle':
-        if now - last_scan_at >= config.get('scan_ms', 60000):
-            last_scan_at = now
-            count = _box_count()
-            if count >= config.get('box_limit', 1):
-                _trigger_return_for_route()
+    if _trade_locked(now) and config.get('route_mode') == 'Trader':
+        _trader_packet_tick(now)
+        last_town_guard_at = now
+        _set_status('trade lockdown %ds' % max(0, (trade_lockdown_until - now) // 1000))
         return
+    if trade_lockdown_until and now >= trade_lockdown_until:
+        trade_lockdown_until = 0
+
+    if not _armed(now):
+        _set_status('paused (not botting at training area)')
+        return
+
+    if state not in ROUTE_ACTIVE_STATES:
+        scan_ms = config.get('scan_ms', 15000)
+        if now - last_scan_at >= scan_ms or last_scan_at == 0:
+            last_scan_at = now
+            count = _sync_scan(True)
+            limit = config.get('box_limit', 1)
+            inv_items = _inventory_items()
+            if not inv_items:
+                empty_inventory_scans += 1
+                if empty_inventory_scans >= 2:
+                    last_scan_at = now - scan_ms + 3000
+            else:
+                empty_inventory_scans = 0
+            log('[%s] Scan: %d / %d boxes.' % (pName, count, limit))
+            _set_status('scan %d/%d, last scan: 0s ago' % (count, limit))
+            if state == 'idle' and count >= limit:
+                _trigger_return_for_route()
+                return
+        else:
+            remaining = scan_ms - (now - last_scan_at)
+            ago = (now - last_scan_at) // 1000
+            _set_status('idle, next scan in %ds (last scan: %ds ago)' % (max(0, remaining // 1000), ago))
+        if state == 'idle':
+            return
 
     if state == 'returning_to_town':
         if now - return_last_try_at >= RETURN_RETRY_MS:
@@ -1544,7 +1928,7 @@ def event_loop():
 
     if state == 'route_running':
         _trader_packet_tick(now)
-        if now - last_town_guard_at >= config.get('scan_ms', 60000):
+        if now - last_town_guard_at >= config.get('scan_ms', 15000):
             last_town_guard_at = now
             if _recover_if_dead_returned_to_jangan():
                 return
@@ -1601,6 +1985,65 @@ def event_loop():
             _set_status('waiting for suit unequip %d ms' % (wait_ms - (now - action_at)))
             return
         _finish_after_suit()
+
+
+def _xcontrol_leaders():
+    try:
+        char = get_character_data()
+        if not char:
+            return []
+        server = char.get('server', '')
+        name = char.get('name', '')
+        path = os.path.join(get_config_dir(), 'xControl', '%s_%s.json' % (server, name))
+        if not os.path.exists(path):
+            return []
+        with open(path, 'r') as f:
+            data = json.load(f)
+        return list(data.get('Leaders', []) or [])
+    except Exception:
+        return []
+
+
+def handle_chat(t, player, msg):
+    try:
+        text = str(msg or '').strip()
+        if not text:
+            return
+        upper = text.upper()
+        if not upper.startswith('CARAVAN '):
+            return
+        leaders = _xcontrol_leaders()
+        if not player or player not in leaders:
+            return
+        cmd = upper[len('CARAVAN '):].strip()
+        if cmd == 'ON':
+            config['enabled'] = True
+            QtBind.setChecked(gui, chkEnabled, True)
+            _save_config()
+            log('[%s] Chat: enabled by %s.' % (pName, player))
+        elif cmd == 'OFF':
+            config['enabled'] = False
+            QtBind.setChecked(gui, chkEnabled, False)
+            _save_config()
+            log('[%s] Chat: disabled by %s.' % (pName, player))
+        elif cmd == 'STATUS':
+            now = _now()
+            armed = _armed(now)
+            scan_ms = config.get('scan_ms', 15000)
+            remaining = max(0, scan_ms - (now - last_scan_at))
+            log('[%s] Status: state=%s box=%d armed=%s next_scan=%dms locked=%s' % (
+                pName, state, last_box_count, armed, remaining, _trade_locked(now)))
+        elif cmd == 'SCAN':
+            _sync_scan(True)
+            log('[%s] Chat: scan triggered by %s.' % (pName, player))
+        elif cmd == 'GO':
+            if _armed(_now()) and state not in ROUTE_ACTIVE_STATES:
+                _trigger_return_for_route()
+                log('[%s] Chat: route triggered by %s.' % (pName, player))
+            else:
+                log('[%s] Chat: GO ignored (armed=%s state=%s).' % (pName, _armed(_now()), state))
+    except Exception as ex:
+        _log('handle_chat error: %s' % ex, True)
 
 
 _load_config()

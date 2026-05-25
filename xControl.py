@@ -157,6 +157,8 @@ _commandHelp = [
 	'      ex › USE HP Potion',
 	'      ex › USE Return Scroll',
 	'      ex › USE Universal Pill',
+	'  SORT                        ► Sort inventory (compact items)',
+	'      ex › SORT',
 	'',
 	'━━━━━━  CHAT / PACKETS  ━━━━━━',
 	'  CHAT  #Type #Message        ► Send a chat message',
@@ -178,6 +180,11 @@ _commandHelp = [
 	'      ex › INJECT 0x70A7 false 01        (toggle Berserker)',
 	'      ex › INJECT 0x3091 false 0c        (jump emote)',
 	'      ex › INJECT 0x7061                 (leave party — no data)',
+	'',
+	'━━━━━━  PLUGINS  ━━━━━━',
+	'  CARAVAN ON/OFF/STATUS/SCAN/GO  ► Control xCaravan (auto-caravan) plugin',
+	'      ex › CARAVAN ON',
+	'      ex › CARAVAN GO',
 ]
 for _line in _commandHelp:
 	QtBind.append(gui,lstCommands,_line)
@@ -953,6 +960,12 @@ def handle_chat(t,player,msg):
 				log("Plugin: Terminated "+str(n)+" transport(s)")
 			else:
 				log("Plugin: No transport pets to terminate")
+		elif msg == "SORT":
+			try:
+				ok = sort_inventory()
+				log("Plugin: Sorting inventory -> " + str(ok))
+			except Exception as ex:
+				log("Plugin: sort_inventory() failed: " + str(ex))
 		elif msg == "GETOUT":
 			# Check if has party
 			if get_party():

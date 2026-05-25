@@ -6,8 +6,8 @@ Personal collection of [phBot](https://www.elitepvpers.com/forum/sro-pserver-bot
 
 | Plugin | Description |
 | --- | --- |
-| [`xControl.py`](./xControl.py) | Control a party of bots via in-game chat. A designated leader types commands and every bot running this plugin reacts (start/stop, teleport, follow, equip, party chat, packet injection, and more). |
-| [`xKaravn.py`](./xKaravn.py) | Auto-Caravan / job route runner. Watches box count, equips/unequips the job suit, casts the Caravan Bugle, walks a Thief / Hunter / Trader route, settles trading, terminates transport, and either returns home or reverse-recalls to the start point. Per-character config. |
+| [`xControl.py`](./xControl.py) | Control a party of bots via in-game chat. A designated leader types commands and every bot running this plugin reacts (start/stop, teleport, follow, equip, sort inventory, party chat, packet injection, and more). |
+| [`xCaravan.py`](./xCaravan.py) | Auto-Caravan / job route runner with full UI dashboard. Watches box count, equips/unequips the job suit, casts the Caravan Bugle, walks a Thief / Hunter / Trader route, settles trading, terminates transport, and either returns home or reverse-recalls to the start point. Includes live stats panel (runs, goods/h, stones/arena/gold per hour, ETA to next run), trader trade-lockdown safety, training-area gate, and chat-command control via `xControl`. Per-character config. |
 | [`xMagicPop.py`](./xMagicPop.py) | Magic Pop spinner. Loops Magic Pop "play" packets across every Magic Pop item in your inventory (Flag / Devil's Spirit S / Angel's Spirit S, M/F), with burst or timed delay and a live status panel. |
 | [`xShining.py`](./xShining.py) | iSRO fully-automatic lightstone crafting. Finds Blue/Black Stone anywhere in inventory and loops the recipe packet until depleted, with configurable speed and a broken-stones counter. |
 
@@ -105,6 +105,16 @@ COMMAND  #required  #optional?
 | `EQUIP #ItemName` | Equip item (partial name OK). Aliases: `TRADER / HUNTER / THIEF / JOB`. | `EQUIP Steel Sword` |
 | `UNEQUIP #ItemName` | Unequip item (partial name OK). Same aliases. | `UNEQUIP HUNTER` |
 | `USE #ItemName` | Use item from inventory (partial name) | `USE HP Potion` |
+| `SORT` | Sort inventory (calls phBot's `sort_inventory()`) | `SORT` |
+
+#### Plugins
+
+| Command | Description | Example |
+| --- | --- | --- |
+| `CARAVAN ON/OFF` | Enable / disable the xCaravan plugin | `CARAVAN ON` |
+| `CARAVAN STATUS` | Log xCaravan state, pouch count, armed flag, scan ETA | `CARAVAN STATUS` |
+| `CARAVAN SCAN` | Force xCaravan to rescan inventory now | `CARAVAN SCAN` |
+| `CARAVAN GO` | Force xCaravan to start a route immediately (if armed) | `CARAVAN GO` |
 
 #### Chat / packets
 
@@ -126,30 +136,39 @@ COMMAND  #required  #optional?
 
 ---
 
-## xKaravn
+## xCaravan
 
-Auto-Caravan controller. Watches your box count, equips the job suit, casts **Job - Caravan Bugle**, runs an embedded **Thief**, **Hunter**, or **Trader** route script (Jangan → Donwhang via ferry; the Hunter variant does a short Jangan loop, the Trader variant auto-target-trades and force-stops at the destination), settles target trading, terminates the transport, and either uses a return scroll or reverse-recalls to the start point. Config is persisted per character.
+Auto-Caravan controller with a live stats dashboard. Watches your pouch count, equips the job suit, casts **Job - Caravan Bugle**, runs an embedded **Thief**, **Hunter**, or **Trader** route script (Jangan → Donwhang via ferry; the Hunter variant does a short Jangan loop, the Trader variant auto-target-trades via direct packet injection at the start/settle NPCs), settles target trading, terminates the transport, and either uses a return scroll or reverse-recalls to the start point. Config and stats are persisted per character.
 
 ### Install
 
-1. Copy `xKaravn.py` into your phBot `Plugins/` folder.
+1. Copy `xCaravan.py` into your phBot `Plugins/` folder.
 2. Restart phBot or **Reload Plugins**.
-3. Open the **xKaravn** tab.
+3. Open the **xCaravan** tab.
+
+### Key features
+
+- **Live stats dashboard** — runs completed, goods/h, stones/h, arena coins/h, gold/h (all rates derived from completed-run deltas, not extrapolated samples), avg & best run time, ETA to next pouch-full, session uptime, and a `↻ Reset Counters` button.
+- **Trader trade-lockdown** — once the trader role starts injecting target-trade packets, the plugin freezes all other actions (no teleports, no NPCs, no stop/start, no reverse) until the settle packet completes. Hard timeout 90s. Keeps the script running through `terminate,transport` → `use,returnscroll` naturally.
+- **Armed gate** — plugin only auto-acts while the character is at the configured training area, so it stays passive when you're idling in town.
+- **Robust scanning** — scans continue across all non-route states (not just `idle`), with empty-inventory backoff and edge-detected immediate rescans.
+- **xControl chat integration** — `CARAVAN ON/OFF/STATUS/SCAN/GO` from a party leader (authorized via xControl's leader list).
+- **Sort inventory before reverse** — calls phBot's `sort_inventory()` to compact items before the recall.
 
 ### UI fields
 
 | Field | Default | Meaning |
 | --- | --- | --- |
-| **Enabled** | off | Master switch for the automation loop. |
-| **Start bot when done** | on | After the route finishes (and the suit is unequipped, if enabled), start the bot. |
-| **Unequip when done** | on | Unequip the job suit at the end of the route. Turn off to stay in suit (e.g. walk straight back to the same trade spot). |
-| **Reverse to recall when done** | off | After the route completes, reverse-recall to the route's start point instead of using a plain return scroll. Recovery fallbacks kick in if the teleport doesn't land. |
-| **Thief / Hunter / Trader** | Thief | Which embedded route to run. The Trader route auto-target-trades and force-stops the script at the destination. |
-| **Goods item** | `Trader Sack Lv 4` | Substring match for the goods item to count (aliases include `special box`, `specialty goods`). |
-| **Run at boxes** | `1` | Run the route once box count reaches this value. |
-| **Scan (ms)** | `60000` | Inventory scan interval while idle. |
-| **Job suit** | `Trader` | Substring used to find your job suit (e.g. `Trader`, `Hunter`, `Thief`). |
-| **Min boxes** | `20` | Minimum box count required to attempt the final Jangan run after teleports. |
+| **🟢 ENABLE PLUGIN** | off | Master switch for the automation loop. |
+| **🤖 Start bot after** | on | After the route finishes (and the suit is unequipped, if enabled), start the bot. |
+| **🧺 Unequip after** | on | Unequip the job suit at the end of the route. Turn off to stay in suit. |
+| **🌀 Reverse to recall after** | off | After the route completes, reverse-recall to the route's start point instead of a plain return scroll. |
+| **🎭 Role** | Thief | Which embedded route to run: `⚔ Thief` / `🏹 Hunter` / `💰 Trader`. The Trader route auto-target-trades via packet injection and force-stops at the destination. |
+| **📦 Goods item** | `Trader Sack Lv 4` | Substring match for the goods item to count (aliases include `special box`, `specialty goods`, `magic silverbag`). |
+| **Run at** | `1` | Run the route once pouch count reaches this value. |
+| **Scan (ms)** | `15000` | Inventory scan interval while idle. |
+| **🚚 Job suit** | `Trader` | Substring used to find your job suit. |
+| **Min boxes** | `20` | Minimum pouch count required to attempt the final Jangan run after teleports. |
 | **Route TPs** | `3` | Final teleport hops allowed at end of route. |
 | **Action (ms)** | `3500` | Generic per-action delay (equip/unequip waits, etc.). |
 
@@ -157,19 +176,46 @@ Auto-Caravan controller. Watches your box count, equips the job suit, casts **Jo
 
 | Button | Action |
 | --- | --- |
-| `Save` | Persist current GUI values to `Plugins/Config/xKaravn_<character>.json`. |
-| `Scan` | Force an inventory read; updates **Box** and **Suit** labels. |
-| `Start` | Manually start the route. |
-| `Stop` | Cancel the current state and stop the script. |
-| `Run script now` | Skip the wait and execute the route script immediately. |
-| `Reverse now` | Trigger a reverse-recall back to the route start point on demand (uses the same recovery fallbacks as end-of-route reverse). |
+| `💾 Save` | Persist current GUI values to `Plugins/Config/xCaravan_<character>.json`. |
+| `🔎 Scan` | Force an inventory read; updates **Pouch** / **Suit** / **Status** rows. |
+| `🚀 START` | Manually start the route. |
+| `🛑 STOP` | Cancel the current state and stop the script. |
+| `📜 Run script` | Skip the wait and execute the route script immediately. |
+| `🌀 Reverse now` | Trigger a reverse-recall back to the route start point on demand. |
+| `↻ Reset` | Reset stats counters (runs, deltas, baselines, fill duration). |
+
+### Stats panel
+
+Two-row dashboard below the status block:
+
+```
+📊 Goods/h  ⏱ Next  🏁 Runs  ⌛ Avg  ⭐ Best
+💎 Stones (n/h)  🪙 Arena (n/h)  💰 Gold (+n/h)  ⏲ Up   ↻ Reset
+```
+
+- Per-hour rates show `--` until the first run completes, then settle to actual session rates.
+- **⏱ Next** uses the *measured* fill duration from the first complete fill cycle, not an extrapolation.
+- **💰 Gold** display uses compact suffixes (`12.3k`, `1.2M`).
+
+### Chat commands (via xControl)
+
+If `xControl` is installed and the sender is in the leader list:
+
+| Command | Action |
+| --- | --- |
+| `CARAVAN ON` | Enable the plugin and persist config |
+| `CARAVAN OFF` | Disable the plugin |
+| `CARAVAN STATUS` | Log state / pouch count / armed / scan ETA / lockdown |
+| `CARAVAN SCAN` | Force an inventory rescan |
+| `CARAVAN GO` | Force a route to start now (if armed and not already in route) |
 
 ### Flow
 
 ```
-idle → (box count ≥ Return count) → equip suit → cast Caravan Bugle
-       → walk route → settletargettrading → terminate transport
-       → use returnscroll → unequip suit → (optionally) start bot
+idle → (pouch ≥ Run-at) → equip suit → cast Caravan Bugle
+     → walk route → settletargettrading → terminate transport
+     → sort_inventory → use returnscroll / reverse_return
+     → unequip suit → (optionally) start bot → idle
 ```
 
 ---
