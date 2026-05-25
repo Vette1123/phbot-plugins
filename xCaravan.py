@@ -652,8 +652,10 @@ ARENA_FILTERS = ('arena coin', 'arena point')
 ROUTE_ACTIVE_STATES = {
     'starting_route', 'route_running', 'returning_to_town',
     'awaiting_reverse_teleport', 'town_returned', 'route_returned', 'finishing',
-    'reverse_completed'
+    'reverse_completed', 'awaiting_sort_settle'
 }
+
+REVERSE_SORT_SETTLE_MS = 15000
 
 TRADER_LOCKDOWN_MS = 90000
 
@@ -1367,6 +1369,12 @@ def _fire_reverse_return():
     except Exception:
         pass
     _sort_inventory()
+    _log('Inventory sorted: holding %d ms before reverse return.' % REVERSE_SORT_SETTLE_MS, True)
+    _set_state('awaiting_sort_settle')
+    return True
+
+
+def _execute_reverse_return():
     try:
         ok = reverse_return(0, '')
     except Exception as ex:
@@ -1993,6 +2001,13 @@ def event_loop():
 
     if state == 'route_returned' and now - action_at >= config.get('action_ms', 3500):
         _finish_route()
+        return
+
+    if state == 'awaiting_sort_settle':
+        if now - action_at >= REVERSE_SORT_SETTLE_MS:
+            _execute_reverse_return()
+        else:
+            _set_status('settling after sort %d ms' % (REVERSE_SORT_SETTLE_MS - (now - action_at)))
         return
 
     if state == 'awaiting_reverse_teleport':
