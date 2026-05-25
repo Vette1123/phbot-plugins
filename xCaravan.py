@@ -702,9 +702,7 @@ def _at_training_area():
 
 
 def _armed(now):
-    if state in ROUTE_ACTIVE_STATES:
-        return True
-    return _at_training_area()
+    return True
 
 
 def _now():
