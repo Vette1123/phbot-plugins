@@ -1665,6 +1665,11 @@ def _finish_route():
 
 
 def _recover_if_dead_returned_to_jangan():
+    # Thief/Hunter walk through Jangan legitimately and also pass back through it
+    # after the return-leg ferry teleports. The recovery guard was firing on those
+    # passes and aborting the route with a return scroll. Restrict to Trader only.
+    if config.get('route_mode', 'Thief') != 'Trader':
+        return False
     count = _box_count()
     if count >= config.get('final_box_min', 20):
         return False
