@@ -38,7 +38,7 @@ txtBoxName = QtBind.createLineEdit(gui, DEFAULT_BOX_NAME, 95, 78, 150, 20)
 QtBind.createLabel(gui, 'Run at', 255, 80)
 txtBoxLimit = QtBind.createLineEdit(gui, '1', 300, 78, 40, 20)
 QtBind.createLabel(gui, 'Scan (ms)', 350, 80)
-txtScanMs = QtBind.createLineEdit(gui, '15000', 410, 78, 60, 20)
+txtScanMs = QtBind.createLineEdit(gui, '30000', 410, 78, 60, 20)
 
 QtBind.createLabel(gui, '🚚 Job suit', 12, 104)
 txtSuitFilter = QtBind.createLineEdit(gui, 'Trader', 95, 102, 150, 20)
@@ -579,7 +579,7 @@ DEFAULT_CONFIG = {
     'verbose_logs': False,
     'box_name': DEFAULT_BOX_NAME,
     'box_limit': 1,
-    'scan_ms': 15000,
+    'scan_ms': 30000,
     'suit_filter': 'Trader',
     'final_box_min': 20,
     'final_teleports': 3,
@@ -771,13 +771,18 @@ def _error(message):
     log('[%s] %s' % (pName, message))
 
 
-def _count_items_matching(filters):
-    total = 0
+def _snapshot_inventory():
     try:
-        inv = get_inventory()
-        items = (inv or {}).get('items') or []
+        return get_inventory() or {}
     except Exception:
-        items = []
+        return {}
+
+
+def _count_items_matching(filters, inv=None):
+    if inv is None:
+        inv = _snapshot_inventory()
+    items = inv.get('items') or []
+    total = 0
     for item in items:
         if not item:
             continue
@@ -787,10 +792,11 @@ def _count_items_matching(filters):
     return total
 
 
-def _current_gold():
+def _current_gold(inv=None):
+    if inv is None:
+        inv = _snapshot_inventory()
     try:
-        inv = get_inventory()
-        return int((inv or {}).get('gold', 0) or 0)
+        return int(inv.get('gold', 0) or 0)
     except Exception:
         return 0
 
@@ -878,11 +884,16 @@ def _stats_update_ui(now):
     hours = uptime_ms / 3600000.0 if uptime_ms > 0 else 0
     has_data = stats_runs >= 1
 
+    inv = _snapshot_inventory()
+    stones_now = _count_items_matching(STONE_FILTERS, inv)
+    arena_now = _count_items_matching(ARENA_FILTERS, inv)
+    gold_now = _current_gold(inv)
+
     if has_data and hours > 0.0167:
         goods_per_hour = int(stats_total_boxes_returned / hours)
-        stones_h = int(max(0, _count_items_matching(STONE_FILTERS) - (stats_baseline_stones or 0)) / hours)
-        arena_h = int(max(0, _count_items_matching(ARENA_FILTERS) - (stats_baseline_arena or 0)) / hours)
-        gold_h = int(max(0, _current_gold() - (stats_baseline_gold or 0)) / hours)
+        stones_h = int(max(0, stones_now - (stats_baseline_stones or 0)) / hours)
+        arena_h = int(max(0, arena_now - (stats_baseline_arena or 0)) / hours)
+        gold_h = int(max(0, gold_now - (stats_baseline_gold or 0)) / hours)
     else:
         goods_per_hour = stones_h = arena_h = gold_h = -1
 
@@ -903,9 +914,9 @@ def _stats_update_ui(now):
     avg_ms = sum(stats_run_durations_ms) // len(stats_run_durations_ms) if stats_run_durations_ms else 0
     best_ms = min(stats_run_durations_ms) if stats_run_durations_ms else 0
 
-    stones_total = max(0, _count_items_matching(STONE_FILTERS) - (stats_baseline_stones or 0))
-    arena_total = max(0, _count_items_matching(ARENA_FILTERS) - (stats_baseline_arena or 0))
-    gold_total = max(0, _current_gold() - (stats_baseline_gold or 0))
+    stones_total = max(0, stones_now - (stats_baseline_stones or 0))
+    arena_total = max(0, arena_now - (stats_baseline_arena or 0))
+    gold_total = max(0, gold_now - (stats_baseline_gold or 0))
 
     rate_tag = lambda v: ('--' if v < 0 else str(v))
     rate_tag_g = lambda v: ('--' if v < 0 else _compact_num(v))
@@ -987,7 +998,7 @@ def _read_gui():
         config['route_mode'] = 'Thief'
     config['box_name'] = QtBind.text(gui, txtBoxName).strip() or DEFAULT_BOX_NAME
     config['box_limit'] = _safe_int(QtBind.text(gui, txtBoxLimit), 1, 1)
-    config['scan_ms'] = _safe_int(QtBind.text(gui, txtScanMs), 15000, 1000)
+    config['scan_ms'] = _safe_int(QtBind.text(gui, txtScanMs), 30000, 1000)
     config['suit_filter'] = QtBind.text(gui, txtSuitFilter).strip() or 'Trader'
     config['final_box_min'] = _safe_int(QtBind.text(gui, txtFinalBoxMin), 20, 1)
     config['final_teleports'] = _safe_int(QtBind.text(gui, txtFinalTeleports), 3, 1)
@@ -1005,7 +1016,7 @@ def _write_gui():
     QtBind.setChecked(gui, chkRouteTrader, mode == 'Trader')
     QtBind.setText(gui, txtBoxName, str(config.get('box_name', DEFAULT_BOX_NAME)))
     QtBind.setText(gui, txtBoxLimit, str(config.get('box_limit', 1)))
-    QtBind.setText(gui, txtScanMs, str(config.get('scan_ms', 15000)))
+    QtBind.setText(gui, txtScanMs, str(config.get('scan_ms', 30000)))
     QtBind.setText(gui, txtSuitFilter, str(config.get('suit_filter', 'Trader')))
     QtBind.setText(gui, txtFinalBoxMin, str(config.get('final_box_min', 20)))
     QtBind.setText(gui, txtFinalTeleports, str(config.get('final_teleports', 3)))
@@ -1028,8 +1039,8 @@ def _load_config():
             _error('Could not read config: %s' % ex)
     if _normalize(config.get('box_name')) == 'special box':
         config['box_name'] = DEFAULT_BOX_NAME
-    if config.get('scan_ms') in (5000, 60000):
-        config['scan_ms'] = 15000
+    if config.get('scan_ms') in (5000, 15000, 60000):
+        config['scan_ms'] = 30000
     if config.get('final_box_min') == 50:
         config['final_box_min'] = 20
     _write_gui()
@@ -1881,15 +1892,11 @@ def event_loop():
     if trade_lockdown_until and now >= trade_lockdown_until:
         trade_lockdown_until = 0
 
-    if not _armed(now):
-        _set_status('paused (not botting at training area)')
-        return
-
     if state not in ROUTE_ACTIVE_STATES:
-        scan_ms = config.get('scan_ms', 15000)
+        scan_ms = config.get('scan_ms', 30000)
         if now - last_scan_at >= scan_ms or last_scan_at == 0:
             last_scan_at = now
-            count = _sync_scan(True)
+            count = _sync_scan(False)
             limit = config.get('box_limit', 1)
             inv_items = _inventory_items()
             if not inv_items:
@@ -1898,16 +1905,13 @@ def event_loop():
                     last_scan_at = now - scan_ms + 3000
             else:
                 empty_inventory_scans = 0
-            log('[%s] Scan: %d / %d boxes.' % (pName, count, limit))
-            _set_status('scan %d/%d, last scan: 0s ago' % (count, limit))
             if state == 'idle' and count >= limit:
+                log('[%s] Pouch full: %d / %d. Starting route.' % (pName, count, limit))
                 _trigger_return_for_route()
                 return
-        else:
-            remaining = scan_ms - (now - last_scan_at)
-            ago = (now - last_scan_at) // 1000
-            _set_status('idle, next scan in %ds (last scan: %ds ago)' % (max(0, remaining // 1000), ago))
         if state == 'idle':
+            remaining = scan_ms - (now - last_scan_at)
+            _set_status('idle · next scan %ds' % max(0, remaining // 1000))
             return
 
     if state == 'returning_to_town':
@@ -1926,7 +1930,7 @@ def event_loop():
 
     if state == 'route_running':
         _trader_packet_tick(now)
-        if now - last_town_guard_at >= config.get('scan_ms', 15000):
+        if now - last_town_guard_at >= config.get('scan_ms', 30000):
             last_town_guard_at = now
             if _recover_if_dead_returned_to_jangan():
                 return
@@ -2027,7 +2031,7 @@ def handle_chat(t, player, msg):
         elif cmd == 'STATUS':
             now = _now()
             armed = _armed(now)
-            scan_ms = config.get('scan_ms', 15000)
+            scan_ms = config.get('scan_ms', 30000)
             remaining = max(0, scan_ms - (now - last_scan_at))
             log('[%s] Status: state=%s box=%d armed=%s next_scan=%dms locked=%s' % (
                 pName, state, last_box_count, armed, remaining, _trade_locked(now)))
