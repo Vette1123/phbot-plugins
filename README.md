@@ -7,7 +7,7 @@ Personal collection of [phBot](https://www.elitepvpers.com/forum/sro-pserver-bot
 | Plugin | Description |
 | --- | --- |
 | [`xControl.py`](./xControl.py) | Control a party of bots via in-game chat. A designated leader types commands and every bot running this plugin reacts (start/stop, teleport, follow, equip, party chat, packet injection, and more). |
-| [`xKaravn.py`](./xKaravn.py) | Auto-Caravan / job route runner. Watches box count, equips/unequips the job suit, casts the Caravan Bugle, walks a Thief or Hunter route, settles trading, terminates transport and returns home. Per-character config. |
+| [`xKaravn.py`](./xKaravn.py) | Auto-Caravan / job route runner. Watches box count, equips/unequips the job suit, casts the Caravan Bugle, walks a Thief / Hunter / Trader route, settles trading, terminates transport, and either returns home or reverse-recalls to the start point. Per-character config. |
 | [`xMagicPop.py`](./xMagicPop.py) | Magic Pop spinner. Loops Magic Pop "play" packets across every Magic Pop item in your inventory (Flag / Devil's Spirit S / Angel's Spirit S, M/F), with burst or timed delay and a live status panel. |
 | [`xShining.py`](./xShining.py) | iSRO fully-automatic lightstone crafting. Finds Blue/Black Stone anywhere in inventory and loops the recipe packet until depleted, with configurable speed and a broken-stones counter. |
 
@@ -57,7 +57,7 @@ COMMAND  #required  #optional?
 | --- | --- | --- |
 | `TRACE #Player?` | Trace leader or specified player | `TRACE Vette` |
 | `NOTRACE` | Stop trace | `NOTRACE` |
-| `FOLLOW #Player? #Distance?` | Follow a party player (no attack). `FOLLOW` follows sender at distance 10; `FOLLOW 0` is exact trace. | `FOLLOW Vette 5` |
+| `FOLLOW #Player? #Distance?` | Follow a party player (no attack). `FOLLOW` follows sender at distance 10; `FOLLOW 0` is exact trace. Sender's own bot ignores the command so the master never chases himself. | `FOLLOW Vette 5` |
 | `NOFOLLOW` | Stop following | `NOFOLLOW` |
 
 #### Movement / teleport
@@ -128,7 +128,7 @@ COMMAND  #required  #optional?
 
 ## xKaravn
 
-Auto-Caravan controller. Watches your box count, equips the job suit, casts **Job - Caravan Bugle**, runs an embedded **Thief** or **Hunter** route script (Jangan → Donwhang via ferry, with the Hunter variant doing a short Jangan loop), settles target trading at the destination, terminates the transport, and uses a return scroll. Config is persisted per character.
+Auto-Caravan controller. Watches your box count, equips the job suit, casts **Job - Caravan Bugle**, runs an embedded **Thief**, **Hunter**, or **Trader** route script (Jangan → Donwhang via ferry; the Hunter variant does a short Jangan loop, the Trader variant auto-target-trades and force-stops at the destination), settles target trading, terminates the transport, and either uses a return scroll or reverse-recalls to the start point. Config is persisted per character.
 
 ### Install
 
@@ -143,7 +143,8 @@ Auto-Caravan controller. Watches your box count, equips the job suit, casts **Jo
 | **Enabled** | off | Master switch for the automation loop. |
 | **Start bot when done** | on | After the route finishes (and the suit is unequipped, if enabled), start the bot. |
 | **Unequip when done** | on | Unequip the job suit at the end of the route. Turn off to stay in suit (e.g. walk straight back to the same trade spot). |
-| **Thief / Hunter** | Thief | Which embedded route to run. |
+| **Reverse to recall when done** | off | After the route completes, reverse-recall to the route's start point instead of using a plain return scroll. Recovery fallbacks kick in if the teleport doesn't land. |
+| **Thief / Hunter / Trader** | Thief | Which embedded route to run. The Trader route auto-target-trades and force-stops the script at the destination. |
 | **Goods item** | `Trader Sack Lv 4` | Substring match for the goods item to count (aliases include `special box`, `specialty goods`). |
 | **Run at boxes** | `1` | Run the route once box count reaches this value. |
 | **Scan (ms)** | `60000` | Inventory scan interval while idle. |
@@ -161,6 +162,7 @@ Auto-Caravan controller. Watches your box count, equips the job suit, casts **Jo
 | `Start` | Manually start the route. |
 | `Stop` | Cancel the current state and stop the script. |
 | `Run script now` | Skip the wait and execute the route script immediately. |
+| `Reverse now` | Trigger a reverse-recall back to the route start point on demand (uses the same recovery fallbacks as end-of-route reverse). |
 
 ### Flow
 

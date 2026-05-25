@@ -44,11 +44,11 @@ QtBind.createLabel(gui, 'Action (ms)', 485, 104)
 txtActionMs = QtBind.createLineEdit(gui, '3500', 550, 102, 55, 20)
 
 QtBind.createButton(gui, 'btn_save_clicked', 'Save', 12, 137)
-QtBind.createButton(gui, 'btn_scan_clicked', 'Scan', 82, 137)
-QtBind.createButton(gui, 'btn_start_clicked', 'Start', 142, 137)
-QtBind.createButton(gui, 'btn_stop_clicked', 'Stop', 212, 137)
-QtBind.createButton(gui, 'btn_run_route_clicked', 'Run script now', 292, 137)
-QtBind.createButton(gui, 'btn_reverse_now_clicked', 'Reverse now', 392, 137)
+QtBind.createButton(gui, 'btn_scan_clicked', 'Scan', 100, 137)
+QtBind.createButton(gui, 'btn_start_clicked', 'Start', 188, 137)
+QtBind.createButton(gui, 'btn_stop_clicked', 'Stop', 276, 137)
+QtBind.createButton(gui, 'btn_run_route_clicked', 'Run script now', 364, 137)
+QtBind.createButton(gui, 'btn_reverse_now_clicked', 'Reverse now', 480, 137)
 
 lblBox = QtBind.createLabel(gui, 'Box: not read', 12, 177)
 lblSuit = QtBind.createLabel(gui, 'Suit: not read', 12, 202)
@@ -592,11 +592,15 @@ reverse_pending = False
 reverse_last_pos = None
 reverse_stationary_since = 0
 reverse_started_at = 0
+reverse_last_stop_at = 0
 
 REVERSE_MIN_RUN_MS = 30000
 REVERSE_STATIONARY_MS = 6000
 REVERSE_POS_TOLERANCE = 2.0
 REVERSE_HARD_TIMEOUT_MS = 30 * 60 * 1000
+REVERSE_POST_TELEPORT_WAIT_MS = 2500
+REVERSE_TELEPORT_TIMEOUT_MS = 30000
+REVERSE_STOP_SCRIPT_INTERVAL_MS = 500
 
 RETURN_RETRY_MS = 20000
 RETURN_MAX_ATTEMPTS = 4
@@ -987,20 +991,31 @@ def _fallback_return_to_training():
 
 
 def _fire_reverse_return():
-    global reverse_pending
+    global reverse_pending, reverse_last_stop_at
     reverse_pending = False
+    reverse_last_stop_at = 0
+    # Stop the caravan script and any trading before teleporting — otherwise the
+    # leftover script keeps issuing walk commands and fights start_bot at the recall point.
+    try:
+        stop_script()
+    except Exception:
+        pass
+    try:
+        stop_trade()
+    except Exception:
+        pass
     try:
         ok = reverse_return(0, '')
     except Exception as ex:
         _log('Reverse return scroll failed: %s' % ex, True)
         ok = False
     if ok:
-        _log('Reverse return scroll used: teleporting to last recall point.', True)
-        _set_state('route_returned')
+        _log('Reverse return scroll used: waiting for teleport to land.', True)
+        _set_state('awaiting_reverse_teleport')
         return True
     _log('Reverse return scroll could not be used; falling back.', True)
     _fallback_return_to_training()
-    _set_state('route_returned')
+    _set_state('reverse_completed')
     return False
 
 
@@ -1011,6 +1026,14 @@ def _reverse_return_tick(now):
     if now - reverse_started_at >= REVERSE_HARD_TIMEOUT_MS:
         _log('Reverse return hard timeout reached; firing fallback now.', True)
         _fire_reverse_return()
+        return
+    # Wait until terminate,transport has actually killed the vehicle —
+    # firing reverse mid-settle conflicts with the script and start_bot
+    # would later attack the still-alive transport.
+    if _trader_transport_ready():
+        reverse_last_pos = None
+        reverse_stationary_since = now
+        _set_status('waiting for transport to be terminated')
         return
     try:
         pos = get_position()
@@ -1253,8 +1276,10 @@ def _run_route_script():
 def _finish_route():
     count = _box_count()
     if config.get('reverse_after', False):
-        _log('Reverse return: %d boxes left. Skipping unequip; resuming bot at recall point.' % count, True)
-        _finish_after_suit()
+        # Reverse return was already issued by _fire_reverse_return after the
+        # transport was killed; just resume the bot in place once teleport landed.
+        _log('Reverse return: %d boxes left. Resuming bot at recall point.' % count, True)
+        _resume_bot_after_reverse()
         return
     if not config.get('unequip_after', True):
         _log('Jangan check: %d boxes left. Keeping suit on (Unequip when done disabled).' % count, True)
@@ -1288,18 +1313,30 @@ def _recover_if_dead_returned_to_jangan():
 
 
 def _finish_after_suit():
-    if config.get('reverse_after', False):
-        try:
-            if reverse_return(0, ''):
-                _log('Finish: reverse return scroll used to go back to training area.', True)
-            else:
-                _log('Finish: reverse return scroll unavailable (no scroll or no recall point).', True)
-        except Exception as ex:
-            _log('Finish: reverse return scroll failed: %s' % ex, True)
     if config.get('start_bot_after', True):
         try:
             start_bot()
             _log('Bot started.', True)
+        except Exception as ex:
+            _log('Bot could not start: %s' % ex, True)
+    _set_state('idle')
+
+
+def _resume_bot_after_reverse():
+    # Belt-and-suspenders: make sure no caravan script/trade state is left running
+    # before the bot takes over at the recall point.
+    try:
+        stop_script()
+    except Exception:
+        pass
+    try:
+        stop_trade()
+    except Exception:
+        pass
+    if config.get('start_bot_after', True):
+        try:
+            start_bot()
+            _log('Bot started at recall point after reverse return.', True)
         except Exception as ex:
             _log('Bot could not start: %s' % ex, True)
     _set_state('idle')
@@ -1446,6 +1483,19 @@ def teleported():
     global route_teleports
     if state == 'returning_to_town':
         _set_state('town_returned')
+    elif state == 'awaiting_reverse_teleport':
+        _log('Reverse return teleport landed.', True)
+        # phBot auto-resumes the loaded script after teleport — kill it now,
+        # before it walks the character out of the recall point.
+        try:
+            stop_script()
+        except Exception:
+            pass
+        try:
+            stop_trade()
+        except Exception:
+            pass
+        _set_state('reverse_completed')
     elif state == 'route_running':
         if reverse_pending:
             _log('Gate teleport during route ignored (waiting for reverse return).', True)
@@ -1459,6 +1509,7 @@ def teleported():
 def event_loop():
     global last_scan_at
     global last_town_guard_at
+    global reverse_last_stop_at
     current_char = _character_name()
     if current_char != loaded_char_name:
         _load_config()
@@ -1514,6 +1565,34 @@ def event_loop():
 
     if state == 'route_returned' and now - action_at >= config.get('action_ms', 3500):
         _finish_route()
+        return
+
+    if state == 'awaiting_reverse_teleport':
+        # Keep hammering stop_script while we wait for teleport — phBot can
+        # auto-resume the loaded route script and walk us back out of town.
+        if now - reverse_last_stop_at >= REVERSE_STOP_SCRIPT_INTERVAL_MS:
+            reverse_last_stop_at = now
+            try:
+                stop_script()
+            except Exception:
+                pass
+        if now - action_at >= REVERSE_TELEPORT_TIMEOUT_MS:
+            _log('Reverse teleport callback timed out; resuming bot anyway.', True)
+            _set_state('reverse_completed')
+        else:
+            _set_status('waiting for reverse teleport %d ms' % (REVERSE_TELEPORT_TIMEOUT_MS - (now - action_at)))
+        return
+
+    if state == 'reverse_completed':
+        # Same belt-and-suspenders during the short post-teleport settle window.
+        if now - reverse_last_stop_at >= REVERSE_STOP_SCRIPT_INTERVAL_MS:
+            reverse_last_stop_at = now
+            try:
+                stop_script()
+            except Exception:
+                pass
+        if now - action_at >= REVERSE_POST_TELEPORT_WAIT_MS:
+            _finish_route()
         return
 
     if state == 'finishing':

@@ -340,8 +340,8 @@ def randomMovement(radiusMax=10):
 # Follow a player using distance. Return success
 def start_follow(player,distance):
 	# Don't follow self (master sending FOLLOW would otherwise target himself)
-	me = get_character()
-	if me and me.get('name') == player:
+	me = get_character_data()
+	if me and player and me.get('name','').lower() == player.lower():
 		return False
 	if party_player(player):
 		global followActivated,followPlayer,followDistance
@@ -682,7 +682,7 @@ def handle_chat(t,player,msg):
 	else:
 		# Also handle name-match case for the suppress list
 		try:
-			me = get_character()
+			me = get_character_data()
 			if me and player and player == me['name'] and msg in _selfEchoSuppressList:
 				return
 		except:
@@ -1048,6 +1048,10 @@ def handle_chat(t,player,msg):
 # Called every 500ms
 def event_loop():
 	if inGame and followActivated:
+		me = get_character_data()
+		if me and me.get('name','').lower() == (followPlayer or '').lower():
+			stop_follow()
+			return
 		player = near_party_player(followPlayer)
 		# check if is near
 		if not player:
