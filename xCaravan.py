@@ -630,6 +630,7 @@ return_last_try_at = 0
 
 trade_lockdown_until = 0
 last_bot_status = -1
+bot_ever_seen_running = False
 empty_inventory_scans = 0
 _training_area_warned = False
 
@@ -715,23 +716,29 @@ def _bot_is_running():
     # Only auto-trigger the caravan when the user is actively botting.
     # phBot exposes get_status() (undocumented). One-shot log of the raw return
     # value the first time we call it, so we can confirm the truthiness mapping.
-    global _bot_status_api_warned, _bot_status_probed
+    global _bot_status_api_warned, _bot_status_probed, bot_ever_seen_running
     fn = globals().get('get_status')
     if not callable(fn):
         if not _bot_status_api_warned:
             _bot_status_api_warned = True
             log('[%s] get_status() not available; auto-trigger gate disabled.' % pName)
+        bot_ever_seen_running = True
         return True
     try:
         value = fn()
+        running = bool(value)
         if not _bot_status_probed:
             _bot_status_probed = True
-            log('[%s] get_status() returned %r (type=%s)' % (pName, value, type(value).__name__))
-        return bool(value)
+            label = str(value).strip() if value else 'idle'
+            log('[%s] Bot status detected: %s (%s)' % (pName, label, 'running' if running else 'not running'))
+        if running:
+            bot_ever_seen_running = True
+        return running
     except Exception as ex:
         if not _bot_status_api_warned:
             _bot_status_api_warned = True
             log('[%s] get_status() raised %s; treating bot as running.' % (pName, ex))
+        bot_ever_seen_running = True
         return True
 
 
@@ -802,10 +809,26 @@ def _error(message):
 
 
 def _snapshot_inventory():
+    # get_inventory() returns an empty/None dict during transient states (right
+    # after login, between teleports, while phBot is asleep due to a full pouch).
+    # xShining hit the same issue and falls back to get_inventory_data() — match
+    # that pattern so the caravan trigger doesn't silently observe 0 boxes when
+    # the pouch is actually full.
+    inv = None
     try:
-        return get_inventory() or {}
+        inv = get_inventory()
     except Exception:
-        return {}
+        inv = None
+    if not inv or not inv.get('items'):
+        fn = globals().get('get_inventory_data')
+        if callable(fn):
+            try:
+                fallback = fn()
+                if fallback and fallback.get('items'):
+                    inv = fallback
+            except Exception:
+                pass
+    return inv or {}
 
 
 def _count_items_matching(filters, inv=None):
@@ -1136,25 +1159,46 @@ def _box_count(debug=False):
             box_filters.append(normalized_alias)
     total = 0
     sources = []
+    probe_report = []  # diagnostic: what each API returned this call
 
     for func_name in ('get_job_pouch', 'get_job_pouch_data', 'get_job_inventory', 'get_job_data'):
         func = globals().get(func_name)
         if not func:
+            if debug:
+                probe_report.append('%s=missing' % func_name)
             continue
         try:
-            items = _container_items(func())
+            raw = func()
+            items = _container_items(raw)
+            if debug:
+                probe_report.append('%s=%d items' % (func_name, len(items)))
             if items:
                 sources.append((func_name, items))
-        except Exception:
-            pass
+        except Exception as ex:
+            if debug:
+                probe_report.append('%s=err:%s' % (func_name, ex))
 
-    try:
-        inv = get_inventory()
-        items = _container_items(inv)
-        if items:
-            sources.append(('inventory', items))
-    except Exception:
-        pass
+    for func_name in ('get_inventory', 'get_inventory_data'):
+        func = globals().get(func_name)
+        if not func:
+            if debug:
+                probe_report.append('%s=missing' % func_name)
+            continue
+        try:
+            raw = func()
+            items = _container_items(raw)
+            if debug:
+                gold = raw.get('gold') if isinstance(raw, dict) else None
+                probe_report.append('%s=%d items%s' % (
+                    func_name, len(items),
+                    (' gold=%s' % gold) if gold is not None else ''
+                ))
+            if items:
+                sources.append((func_name, items))
+                break
+        except Exception as ex:
+            if debug:
+                probe_report.append('%s=err:%s' % (func_name, ex))
 
     names = []
     seen_names = []
@@ -1170,11 +1214,15 @@ def _box_count(debug=False):
                 total += qty
                 names.append('%s:%s' % (source_name, qty))
 
-    if debug and total == 0:
-        log('[%s] Box not found. Filter: %s | Items seen: %s' % (
+    if debug and total == 0 and seen_names:
+        # Only complain when inventory was actually read but the box wasn't
+        # there — a genuinely empty read means phBot hasn't loaded the
+        # inventory yet (common right after login), which is noise, not a bug.
+        log('[%s] Box not found. Filter: %s | APIs: %s | Items seen: %s' % (
             pName,
             ', '.join(box_filters),
-            ' | '.join(seen_names[:12]) if seen_names else 'no items read'
+            ', '.join(probe_report) if probe_report else 'none probed',
+            ' | '.join(seen_names[:12])
         ))
 
     limit = config.get('box_limit', 1)
@@ -1192,12 +1240,9 @@ def _box_count(debug=False):
 
 
 def _inventory_items():
-    try:
-        inv = get_inventory()
-        if inv and 'items' in inv:
-            return inv['items']
-    except Exception:
-        pass
+    inv = _snapshot_inventory()
+    if inv and 'items' in inv:
+        return inv['items']
     return []
 
 
@@ -1867,10 +1912,12 @@ def disconnected():
     global state
     global last_scan_at
     global route_teleports
+    global bot_ever_seen_running
 
     state = 'idle'
     last_scan_at = 0
     route_teleports = 0
+    bot_ever_seen_running = False
 
 
 def teleported():
@@ -1950,10 +1997,13 @@ def event_loop():
             else:
                 empty_inventory_scans = 0
             if state == 'idle' and count >= limit:
-                if not _bot_is_running():
+                if not _bot_is_running() and not bot_ever_seen_running:
                     _set_status('idle · pouch full, waiting for bot to start')
                     return
-                log('[%s] Pouch full: %d / %d. Starting route.' % (pName, count, limit))
+                if not _bot_is_running():
+                    log('[%s] Pouch full: %d / %d. Bot asleep (likely pouch-full auto-pause); firing route anyway.' % (pName, count, limit))
+                else:
+                    log('[%s] Pouch full: %d / %d. Starting route.' % (pName, count, limit))
                 _trigger_return_for_route()
                 return
         if state == 'idle':
