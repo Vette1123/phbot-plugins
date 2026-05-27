@@ -1879,6 +1879,11 @@ def _trader_packet_tick(now):
             trader_pkt_stage_at = now
             trade_lockdown_until = now + TRADER_LOCKDOWN_MS
             _log('Trader: transport summoned, talking to start NPC. Lockdown ON.', True)
+            try:
+                import xNotify
+                xNotify.notify('trade_start', 'Trade run started')
+            except Exception:
+                pass
 
     if trader_pkt_start_stage == 1 and now - trader_pkt_stage_at >= TRADER_PACKET_DELAY_AFTER_READY:
         _trader_inject(TRADER_PACKET_START_TALK[0], TRADER_PACKET_START_TALK[1], 'start talk')
@@ -1917,6 +1922,11 @@ def _trader_packet_tick(now):
         trader_pkt_settle_stage = 0
         trade_lockdown_until = 0
         _log('Trader: settle close fired. Lockdown OFF.', True)
+        try:
+            import xNotify
+            xNotify.notify('trade_settle', 'Trade settled')
+        except Exception:
+            pass
 
 
 def _run_route_script():

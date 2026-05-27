@@ -12,6 +12,7 @@ Personal collection of [phBot](https://www.elitepvpers.com/forum/sro-pserver-bot
 | [`xMagicPop.py`](./xMagicPop.py) | Magic Pop spinner. Loops Magic Pop "play" packets across every Magic Pop item in your inventory (Flag / Devil's Spirit S / Angel's Spirit S, M/F), with burst or timed delay and a live status panel. |
 | [`xShining.py`](./xShining.py) | iSRO fully-automatic lightstone crafting. Finds Blue/Black Stone anywhere in inventory and loops the recipe packet until depleted, with configurable speed and a broken-stones counter. |
 | [`xPacketTool.py`](./xPacketTool.py) | Packet inspector / injector. Send raw client or server packets, with a filter list to log only the opcodes you care about. |
+| [`xNotify.py`](./xNotify.py) | Push live status alerts to **Telegram** and/or **Discord** — death, bot stopped, attacked, out of HP/MP potions, PMs, global/notice chat, unique sightings, and xCaravan trade start/settle. Per-event toggles, throttling, and a shared config read by every bot process. Each alert is labelled `[game • character]` so you know which bot fired it. |
 
 ---
 
@@ -288,11 +289,113 @@ iSRO fully-automatic lightstone crafting. Scans inventory for any Blue Stone + B
 
 ---
 
+## xNotify
+
+Push live status alerts from your bot(s) to **Telegram** and/or **Discord**. Built for
+multi-account setups: every bot process reads the same shared config and every message is
+prefixed with `[game • character]`, so one channel shows you exactly which bot did what.
+
+### Install
+
+1. Copy `xNotify.py` into your phBot `Plugins/` folder.
+2. Restart phBot (or use **Reload Plugins**).
+3. Open the **xNotify** tab, fill in your Telegram and/or Discord fields (below), tick the
+   events you want, click **Save**, then **Send Test**.
+
+You only need to fill in the channel(s) you want — leave the other blank to disable it.
+Configure once: all your bots share the same `xNotify.json` next to the plugin.
+
+### Events
+
+| Alert | Trigger |
+| --- | --- |
+| ⚠️ Death | your character's HP hits 0 |
+| 🛑 Bot stop | botting/training stops |
+| ⚔️ Attacked | another player attacks you *(packet parser — see notes)* |
+| 🩸 HP pots out | HP (or Vigor) potions reach 0 in inventory |
+| 🔵 MP pots out | MP (or Vigor) potions reach 0 in inventory |
+| ✉️ PM | someone whispers you (sent immediately, no throttle) |
+| 📢 Global | global chat message |
+| 📜 Notice | server notice |
+| 👑 Unique | a global/notice whose text matches a unique keyword |
+| 📦 Trade start | xCaravan begins a trade run |
+| ✅ Trade settle | xCaravan completes/settles the target trade |
+
+Noisy events (everything except PM) share a configurable **cooldown** so you don't get
+spammed. Death, bot-stop, and pots-out are edge-triggered (fire once on the transition).
+
+### Getting your Telegram fields
+
+**Bot token**
+
+1. In Telegram, message [@BotFather](https://t.me/BotFather) → send `/newbot`.
+2. Pick a name and a username ending in `bot`.
+3. BotFather replies with a token like `123456789:AAExxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx`. That's your **token**.
+
+**Chat id** (for a channel)
+
+1. Add your bot to the channel as an **Administrator** with **Post Messages** enabled
+   (Channel → Manage → Administrators → Add Admin → your bot).
+2. Post any message in the channel.
+3. Open in a browser (replace `<TOKEN>`): `https://api.telegram.org/bot<TOKEN>/getUpdates`
+4. Find `"chat":{"id":-1001234567890, ... "type":"channel"}` — that `id` (the full `-100…`
+   number) is your **chat id**.
+
+> Tip: forwarding a channel message to [@userinfobot](https://t.me/userinfobot) also shows
+> the id, but if it gives `-1234567890` you must use the Bot-API form: drop the leading `-`
+> and prepend `-100`, e.g. `1234567890` → `-1001234567890`.
+
+For a private chat (not a channel), just message your bot first, then read the same
+`getUpdates` URL and use the positive `chat.id`.
+
+### Getting your Discord webhook
+
+1. In Discord: **Server Settings → Integrations → Webhooks → New Webhook** (or a channel's
+   **Edit Channel → Integrations → Webhooks**).
+2. Pick the target channel, click **Copy Webhook URL**.
+3. Paste it into the **Discord webhook** field. (xNotify sends a normal `User-Agent`, so
+   Cloudflare won't block it.)
+
+### Config file (`xNotify.json`)
+
+Saved next to the plugin and shared by every bot process. Fields: `telegram_token`,
+`telegram_chat_id`, `discord_webhook`, `cooldown_sec`, per-event `events` toggles, and
+`unique_keywords`. **Add your server's unique monster names** (or its announcement wording)
+to `unique_keywords` so 👑 Unique fires for your server, e.g.:
+
+```json
+"unique_keywords": ["unique", "Tiger Girl", "Uruchi", "Isyutaru", "Lord Yarkan"]
+```
+
+### For other plugins
+
+Any plugin can emit an alert through xNotify:
+
+```python
+try:
+    import xNotify
+    xNotify.notify('trade_start', 'Trade run started')   # force=True to skip throttle
+except Exception:
+    pass
+```
+
+### Notes / verify on your server
+
+- **Out-of-potions** detects recovery items by phBot item type ids (`tid1=3, tid2=1`,
+  `tid3` 1=HP / 2=MP / 3=Vigor), with a name fallback (`"…Potion"` / `"Vigor"`). Confirm by
+  letting a stack run dry once.
+- **Attacked** ships with a placeholder opcode (`0xB070`); finish it by capturing a real
+  player attack with `xPacketTool` to confirm the opcode and source/target offsets.
+- **Game name** uses `get_character_data()`'s server/region field, falling back to the
+  loaded profile filename (e.g. `vSRO`).
+
+---
+
 ## Credits
 
 - All plugins maintained by **Gado** — [github.com/Vette1123](https://github.com/Vette1123)
 - `xControl`, `xAutoConfig`, and `xPacketTool` originally by [JellyBitz](https://github.com/JellyBitz/phBot-xPlugins); extended, rewritten, and maintained here by Gado.
-- `xCaravan`, `xMagicPop`, `xShining` written by Gado.
+- `xCaravan`, `xMagicPop`, `xShining`, `xNotify` written by Gado.
 
 ## License
 
