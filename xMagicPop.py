@@ -139,7 +139,7 @@ QtBind.createLabel(gui, 'Progress:',     12, _y)
 lbl_progress = QtBind.createLabel(gui, 'Attempts 0  |  Cycles 0  |  Elapsed 0s' + _PAD, 110, _y)
 
 _y += 32
-btnGithub = QtBind.createButton(gui, 'btn_github_clicked', '  ⭐  (Gado) GitHub  ⭐  ', 175, 200)
+btnGithub = QtBind.createButton(gui, 'btn_github_clicked', ' 🟡🔗 Gado @ GitHub 🔗🟡 ', 175, 200)
 _try_style_github(btnGithub)
 
 # --- RIGHT: Inventory ---
