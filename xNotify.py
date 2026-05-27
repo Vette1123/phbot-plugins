@@ -14,7 +14,7 @@ import urllib.error
 import webbrowser
 
 pName = 'xNotify'
-pVersion = '1.1.0'
+pVersion = '1.1.1'
 pAuthor = 'Vette1123 (Gado)'
 pUrl = 'https://raw.githubusercontent.com/Vette1123/phbot-plugins/main/xNotify.py'
 
@@ -24,6 +24,26 @@ GITHUB_BTN_STYLE = (
     'border:1px solid #8b6b00;border-radius:6px;padding:2px 10px;}'
     'QPushButton:hover{background:#ffe27a;}'
 )
+
+
+def _mask_secret(s):
+    """Masked display form of a secret: bullets + last 4 chars (empty stays empty).
+    phBot's QtBind has no password echo mode, so we mask the displayed text instead."""
+    s = s or ''
+    if not s:
+        return ''
+    if len(s) <= 4:
+        return '•' * len(s)
+    return '•' * (len(s) - 4) + s[-4:]
+
+
+def _resolve_secret(field_text, stored):
+    """If the field still shows the mask of the stored value, it's unchanged -> keep
+    stored. Otherwise the user typed/pasted a new value -> use it."""
+    field_text = (field_text or '').strip()
+    if field_text == _mask_secret(stored):
+        return stored
+    return field_text
 
 
 def btn_github_clicked():
@@ -413,11 +433,11 @@ gui = QtBind.init(__name__, pName)
 QtBind.createLabel(gui, 'xNotify — Telegram + Discord alerts', 6, 8)
 
 QtBind.createLabel(gui, 'Telegram token:', 6, 36)
-txtToken = QtBind.createLineEdit(gui, config['telegram_token'], 120, 32, 200, 20)
+txtToken = QtBind.createLineEdit(gui, _mask_secret(config['telegram_token']), 120, 32, 200, 20)
 QtBind.createLabel(gui, 'Telegram chat id:', 6, 62)
-txtChat = QtBind.createLineEdit(gui, config['telegram_chat_id'], 120, 58, 200, 20)
+txtChat = QtBind.createLineEdit(gui, _mask_secret(config['telegram_chat_id']), 120, 58, 200, 20)
 QtBind.createLabel(gui, 'Discord webhook:', 6, 88)
-txtHook = QtBind.createLineEdit(gui, config['discord_webhook'], 120, 84, 200, 20)
+txtHook = QtBind.createLineEdit(gui, _mask_secret(config['discord_webhook']), 120, 84, 200, 20)
 QtBind.createLabel(gui, 'Cooldown (s):', 6, 114)
 txtCd = QtBind.createLineEdit(gui, str(config['cooldown_sec']), 120, 110, 60, 20)
 
@@ -445,9 +465,9 @@ _try_style_github(btnGithub)
 
 
 def btnSave_clicked():
-    config['telegram_token'] = QtBind.text(gui, txtToken).strip()
-    config['telegram_chat_id'] = QtBind.text(gui, txtChat).strip()
-    config['discord_webhook'] = QtBind.text(gui, txtHook).strip()
+    config['telegram_token'] = _resolve_secret(QtBind.text(gui, txtToken), config['telegram_token'])
+    config['telegram_chat_id'] = _resolve_secret(QtBind.text(gui, txtChat), config['telegram_chat_id'])
+    config['discord_webhook'] = _resolve_secret(QtBind.text(gui, txtHook), config['discord_webhook'])
     try:
         config['cooldown_sec'] = int(QtBind.text(gui, txtCd))
     except Exception:
@@ -455,6 +475,10 @@ def btnSave_clicked():
     for _key, chk in _event_checks.items():
         config['events'][_key] = bool(QtBind.isChecked(gui, chk))
     save_config(config)
+    # Re-mask the fields so the plaintext secrets aren't left on screen.
+    QtBind.setText(gui, txtToken, _mask_secret(config['telegram_token']))
+    QtBind.setText(gui, txtChat, _mask_secret(config['telegram_chat_id']))
+    QtBind.setText(gui, txtHook, _mask_secret(config['discord_webhook']))
     _safe_log('config saved')
     QtBind.setText(gui, lblStatus, 'Status: saved')
 
