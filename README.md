@@ -317,12 +317,23 @@ Configure once: all your bots share the same `xNotify.json` next to the plugin.
 | ✉️ PM | someone whispers you (sent immediately, no throttle) |
 | 📢 Global | global chat message |
 | 📜 Notice | server notice |
-| 👑 Unique | a global/notice whose text matches a unique keyword |
+| 👑 Unique | **any** unique monster (mob rarity type 8) that spawns in the bot's view — one alert per spawn — **plus** any global/notice whose text matches a unique keyword |
 | 📦 Trade start | xCaravan begins a trade run |
 | ✅ Trade settle | xCaravan completes/settles the target trade |
 
 Noisy events (everything except PM) share a configurable **cooldown** so you don't get
 spammed. Death, bot-stop, and pots-out are edge-triggered (fire once on the transition).
+
+### Multi-account: shared events are sent only once
+
+Server-wide events — **Global, Notice, and Unique** — arrive at *every* bot you have
+running. To avoid 10 identical messages when you run 10 accounts, the first bot to see
+such an event **claims** it (via an atomic marker file in a shared `xNotify_dedup/` folder
+next to the plugin) and the rest skip it — so you get **one** copy. These shared messages
+are labelled `[game]` only (no character name, since they aren't tied to one character).
+
+Per-character events — **Death, Bot stop, Attacked, HP/MP pots out, PM, Trade start/settle**
+— are **not** deduped: every bot reports its own, labelled `[game • character]`.
 
 ### Getting your Telegram fields
 
@@ -381,6 +392,10 @@ except Exception:
 
 ### Notes / verify on your server
 
+- **Uniques** are caught two ways: (1) any monster with phBot rarity `type == 8` that spawns
+  in the bot's view fires one alert per spawn — works with no server announcement; and
+  (2) any global/notice whose text matches a `unique_keywords` entry. Across many accounts,
+  unique/global/notice alerts are deduped to a single message (see *Multi-account* above).
 - **Out-of-potions** detects recovery items by phBot item type ids (`tid1=3, tid2=1`,
   `tid3` 1=HP / 2=MP / 3=Vigor), with a name fallback (`"…Potion"` / `"Vigor"`). Confirm by
   letting a stack run dry once.

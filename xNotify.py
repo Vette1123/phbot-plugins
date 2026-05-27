@@ -12,9 +12,10 @@ import urllib.request
 import urllib.parse
 import urllib.error
 import webbrowser
+import hashlib
 
 pName = 'xNotify'
-pVersion = '1.1.1'
+pVersion = '1.3.0'
 pAuthor = 'Vette1123 (Gado)'
 pUrl = 'https://raw.githubusercontent.com/Vette1123/phbot-plugins/main/xNotify.py'
 
@@ -134,6 +135,74 @@ def _safe_log(msg):
         log('[xNotify] ' + str(msg))
     except Exception:
         pass
+
+
+# ______________________________ Cross-process dedup ______________________________ #
+# Server-wide events (global/notice/unique) arrive at EVERY bot running this plugin.
+# To avoid N copies when many accounts run together, the first bot to see such an
+# event claims it via an atomic marker file in a shared folder; the rest skip it.
+# Per-character events (death/attacked/pots/trade/pm) are NOT deduped — you want each.
+
+SHARED_EVENTS = {'global', 'notice', 'unique'}
+SHARED_WINDOW = {'global': 30.0, 'notice': 30.0, 'unique': 120.0}  # seconds
+_DEDUP_DIR = os.path.join(os.path.dirname(_CFG_PATH), 'xNotify_dedup')
+_last_dedup_cleanup = 0.0
+
+
+def _dedup_cleanup(now):
+    """Delete marker files older than the longest window so the folder can't grow."""
+    global _last_dedup_cleanup
+    if now - _last_dedup_cleanup < 300:
+        return
+    _last_dedup_cleanup = now
+    try:
+        for fn in os.listdir(_DEDUP_DIR):
+            p = os.path.join(_DEDUP_DIR, fn)
+            try:
+                if now - os.stat(p).st_mtime > 3600:
+                    os.remove(p)
+            except Exception:
+                pass
+    except Exception:
+        pass
+
+
+def _claim_shared(key, window):
+    """Return True if THIS process should send the shared event. Only the first bot
+    to atomically create the marker (within `window` seconds) wins; others get False.
+    If coordination is impossible (fs error), default to True (send rather than lose)."""
+    try:
+        os.makedirs(_DEDUP_DIR, exist_ok=True)
+    except Exception:
+        return True
+    now = time.time()
+    _dedup_cleanup(now)
+    h = hashlib.md5(key.encode('utf-8', 'replace')).hexdigest()
+    path = os.path.join(_DEDUP_DIR, h)
+    # Fresh marker present -> already claimed by some bot -> skip.
+    try:
+        if now - os.stat(path).st_mtime < window:
+            return False
+    except FileNotFoundError:
+        pass
+    except Exception:
+        return True
+    # Atomic create: exactly one racing process succeeds.
+    try:
+        fd = os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+        os.close(fd)
+        return True
+    except FileExistsError:
+        # Marker exists. If it's stale (past window), take it over; else skip.
+        try:
+            if now - os.stat(path).st_mtime >= window:
+                os.utime(path, None)
+                return True
+        except Exception:
+            pass
+        return False
+    except Exception:
+        return True
 
 
 # ______________________________ Channels ______________________________ #
@@ -257,6 +326,9 @@ def _identity():
 
 def _format(event_type, text):
     game, name = _identity()
+    # Shared/server-wide events aren't tied to one character, so omit the char name.
+    if event_type in SHARED_EVENTS:
+        return '%s [%s] %s' % (EMOJI.get(event_type, 'ℹ️'), game, text)
     return '%s [%s • %s] %s' % (EMOJI.get(event_type, 'ℹ️'), game, name, text)
 
 
@@ -273,10 +345,15 @@ def _throttled(event_type):
 
 def notify(event_type, text, force=False):
     """Public API. Other plugins: import xNotify; xNotify.notify('trade_start', '...')
-    force=True bypasses the per-event cooldown (used for PMs)."""
+    force=True bypasses the per-event cooldown (used for PMs). Server-wide events
+    (global/notice/unique) are deduped across all bots so only one copy is sent."""
     if not config.get('events', {}).get(event_type, False):
         return
-    if not force and _throttled(event_type):
+    if event_type in SHARED_EVENTS:
+        # Cross-process claim handles dedup AND throttling for shared events.
+        if not _claim_shared(event_type + '|' + text, SHARED_WINDOW.get(event_type, 30.0)):
+            return
+    elif not force and _throttled(event_type):
         return
     _enqueue(_format(event_type, text))
 
@@ -377,6 +454,29 @@ def _check_potions():
         _prev_mp_pots = mp
 
 
+UNIQUE_MOB_TYPE = 8  # phBot mob 'type' rarity codes: 8 = Unique
+_seen_uniques = set()
+
+
+def _check_uniques():
+    """Alert on every unique monster (mob type 8) that appears in the bot's view,
+    once per spawn. Dedup by entity key so it doesn't repeat each tick; a later
+    respawn (new key) re-alerts."""
+    global _seen_uniques
+    try:
+        mons = get_monsters() or {}
+    except Exception:
+        return
+    present = set()
+    for key, mob in mons.items():
+        if not mob or mob.get('type') != UNIQUE_MOB_TYPE:
+            continue
+        present.add(key)
+        if key not in _seen_uniques:
+            notify('unique', 'Unique spawned: ' + (mob.get('name') or '?'), force=True)
+    _seen_uniques = present
+
+
 def event_loop():
     global _prev_hp, _prev_botting
     try:
@@ -394,6 +494,7 @@ def event_loop():
             notify('bot_stopped', 'Bot stopped')
         _prev_botting = b
     _check_potions()
+    _check_uniques()
 
 
 def handle_joymax(opcode, data):
