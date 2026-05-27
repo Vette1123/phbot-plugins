@@ -124,7 +124,7 @@ QtBind.createLabel(gui, 'Progress:',     12, _y)
 lbl_progress = QtBind.createLabel(gui, 'Attempts 0  |  Cycles 0  |  Elapsed 0s' + _PAD, 110, _y)
 
 _y += 32
-QtBind.createButton(gui, 'btn_github_clicked', '  github.com/Vette1123  (Gado)  ', 12, _y)
+QtBind.createButton(gui, 'btn_github_clicked', ' (Gado) GitHub ', 12, _y)
 
 # --- RIGHT: Inventory ---
 QtBind.createLabel(gui, '--- Inventory (Magic Pop slot range) ---', 395, 8)
