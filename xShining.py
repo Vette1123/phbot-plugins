@@ -3,6 +3,15 @@ import QtBind
 import struct
 import threading
 import time
+import webbrowser
+
+GITHUB_URL = 'https://github.com/Vette1123'
+
+def btn_github_clicked():
+    try:
+        webbrowser.open(GITHUB_URL)
+    except Exception:
+        pass
 
 pName = 'xShining'
 pVersion = '4.1.2'
@@ -36,6 +45,7 @@ txtDelay = QtBind.createLineEdit(gui, str(DEFAULT_DELAY_MS), 65, 88, 60, 20)
 
 lblStatus = QtBind.createLabel(gui, 'Status: Waiting...', 6, 118)
 lblCount  = QtBind.createLabel(gui, 'Broken Stones: 0',   6, 138)
+QtBind.createButton(gui, 'btn_github_clicked', '🌐 GitHub: Vette1123 (Gado)', 6, 165)
 
 # ______________________________ Helper Methods ______________________________ #
 

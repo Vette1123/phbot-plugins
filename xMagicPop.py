@@ -2,6 +2,15 @@
 from phBot import *
 import QtBind
 import time
+import webbrowser
+
+GITHUB_URL = 'https://github.com/Vette1123'
+
+def btn_github_clicked():
+    try:
+        webbrowser.open(GITHUB_URL)
+    except Exception:
+        pass
 
 pName = 'xMagicPop'
 pVersion = '2.0.0'
@@ -113,6 +122,9 @@ lbl_last     = QtBind.createLabel(gui, '-' + _PAD,           110, _y)
 _y += 24
 QtBind.createLabel(gui, 'Progress:',     12, _y)
 lbl_progress = QtBind.createLabel(gui, 'Attempts 0  |  Cycles 0  |  Elapsed 0s' + _PAD, 110, _y)
+
+_y += 32
+QtBind.createButton(gui, 'btn_github_clicked', '🌐 GitHub: Vette1123 (Gado)', 12, _y)
 
 # --- RIGHT: Inventory ---
 QtBind.createLabel(gui, '--- Inventory (Magic Pop slot range) ---', 395, 8)
