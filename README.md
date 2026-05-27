@@ -1,6 +1,6 @@
 # phbot-plugins
 
-Personal collection of [phBot](https://www.elitepvpers.com/forum/sro-pserver-bots/) plugins for Silkroad Online.
+Personal collection of [phBot](https://www.elitepvpers.com/forum/sro-pserver-bots/) plugins for Silkroad Online by **Gado** ([Vette1123](https://github.com/Vette1123)).
 
 ## Plugins
 
@@ -8,6 +8,7 @@ Personal collection of [phBot](https://www.elitepvpers.com/forum/sro-pserver-bot
 | --- | --- |
 | [`xControl.py`](./xControl.py) | Control a party of bots via in-game chat. A designated leader types commands and every bot running this plugin reacts (start/stop, teleport, follow, equip, sort inventory, party chat, packet injection, and more). |
 | [`xCaravan.py`](./xCaravan.py) | Auto-Caravan / job route runner with full UI dashboard. Watches box count, equips/unequips the job suit, casts the Caravan Bugle, walks a Thief / Hunter / Trader route, settles trading, terminates transport, and either returns home or reverse-recalls to the start point. Includes live stats panel (runs, goods/h, stones/arena/gold per hour, ETA to next run), trader trade-lockdown safety, training-area gate, and chat-command control via `xControl`. Per-character config. |
+| [`xAutoConfig.py`](./xAutoConfig.py) | Per-character profile/config switcher. Auto-loads the right phBot config, training script, and DB3 sidecar files when a character logs in, so multi-account setups boot into the correct profile without manual swaps. |
 | [`xMagicPop.py`](./xMagicPop.py) | Magic Pop spinner. Loops Magic Pop "play" packets across every Magic Pop item in your inventory (Flag / Devil's Spirit S / Angel's Spirit S, M/F), with burst or timed delay and a live status panel. |
 | [`xShining.py`](./xShining.py) | iSRO fully-automatic lightstone crafting. Finds Blue/Black Stone anywhere in inventory and loops the recipe packet until depleted, with configurable speed and a broken-stones counter. |
 
@@ -288,8 +289,9 @@ iSRO fully-automatic lightstone crafting. Scans inventory for any Blue Stone + B
 
 ## Credits
 
-- `xControl` original plugin: [JellyBitz](https://github.com/JellyBitz/phBot-xPlugins)
-- Extensions, new plugins & UI: [Vette1123](https://github.com/Vette1123)
+- All plugins maintained by **Gado** — [github.com/Vette1123](https://github.com/Vette1123)
+- `xControl` and `xAutoConfig` originally by [JellyBitz](https://github.com/JellyBitz/phBot-xPlugins); extended, rewritten, and maintained here by Gado.
+- `xCaravan`, `xMagicPop`, `xShining` written by Gado.
 
 ## License
 

@@ -7,8 +7,9 @@ import time
 
 pName = 'xCaravan'
 pVersion = '1.0.0'
-pAuthor = 'xCaravan'
-pUrl = ''
+pAuthor = 'Vette1123 (Gado)'
+pUrl = 'https://raw.githubusercontent.com/Vette1123/phbot-plugins/main/xCaravan.py'
+# GitHub: https://github.com/Vette1123
 
 DEFAULT_BOX_NAME = 'Trader Sack Lv 4'
 BOX_NAME_ALIASES = {

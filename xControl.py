@@ -11,7 +11,9 @@ import time
 
 pName = 'xControl'
 pVersion = '1.9.1'
-pUrl = 'https://raw.githubusercontent.com/JellyBitz/phBot-xPlugins/master/xControl.py'
+pAuthor = 'JellyBitz, Vette1123 (Gado)'
+pUrl = 'https://raw.githubusercontent.com/Vette1123/phbot-plugins/main/xControl.py'
+# GitHub: https://github.com/Vette1123
 
 # ______________________________ Initializing ______________________________ #
 

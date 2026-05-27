@@ -5,6 +5,9 @@ import time
 
 pName = 'xMagicPop'
 pVersion = '2.0.0'
+pAuthor = 'Vette1123 (Gado)'
+pUrl = 'https://raw.githubusercontent.com/Vette1123/phbot-plugins/main/xMagicPop.py'
+# GitHub: https://github.com/Vette1123
 
 # ============================================================
 # Magic Pop loop (C->S 0x7118)

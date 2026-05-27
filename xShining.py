@@ -6,6 +6,9 @@ import time
 
 pName = 'xShining'
 pVersion = '4.1.2'
+pAuthor = 'Vette1123 (Gado)'
+pUrl = 'https://raw.githubusercontent.com/Vette1123/phbot-plugins/main/xShining.py'
+# GitHub: https://github.com/Vette1123
 isRunning = False
 broken_count = 0
 
