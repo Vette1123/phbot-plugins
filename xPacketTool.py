@@ -51,7 +51,7 @@ _y+=25
 btnInjectClient = QtBind.createButton(gui,'btnInjectClient_clicked',"  Inject To Client  ",_x+308,_y)
 btnInjectServer = QtBind.createButton(gui,'btnInjectServer_clicked',"  Inject To Server  ",_x+404,_y)
 _y+=55
-btnGithub = QtBind.createButton(gui,'btn_github_clicked','  ★  (Gado) GitHub  ★  ',6,_y)
+btnGithub = QtBind.createButton(gui,'btn_github_clicked','  ⭐  (Gado) GitHub  ⭐  ',6,_y)
 _try_style_github(btnGithub)
 
 # Filter
@@ -61,21 +61,21 @@ QtBind.createLineEdit(gui,"",_x-26,_y,1,265) # Separator line
 
 cbxSro = QtBind.createCheckBox(gui, 'cbxShowClient_checked','Show Client packets [C->S]',_x+10,_y)
 cbxShowClient = False
-_y+=20
+_y+=26
 cbxJmx = QtBind.createCheckBox(gui, 'cbxShowServer_checked','Show Server packets [S->C]',_x+10,_y)
 cbxShowServer = False
 
-_y+=40
+_y+=46
 cbxDontShow = QtBind.createCheckBox(gui, 'cbxDontShow_clicked',"Don't show",_x+5,_y)
 cbxOnlyShow = QtBind.createCheckBox(gui, 'cbxOnlyShow_clicked',"Only Show",_x+100,_y)
 QtBind.setChecked(gui,cbxDontShow,True) # using two checkbox like radiobutton
 cbxDontShow_checked = True
-_y+=20
+_y+=28
 lblOpcodes = QtBind.createLabel(gui,"The following list of opcodes ( Filter )",_x,_y)
-_y+=18
+_y+=22
 tbxOpcodes = QtBind.createLineEdit(gui,"",_x,_y,100,20)
 btnAddOpcode = QtBind.createButton(gui,'btnAddOpcode_clicked',"      Add      ",_x+100+2,_y-2)
-_y+=20
+_y+=26
 lstOpcodes = QtBind.createList(gui,_x,_y,176,120)
 lstOpcodesData = []
 btnRemOpcode = QtBind.createButton(gui,'btnRemOpcode_clicked',"     Remove     ",_x+88-32,_y-1+120)

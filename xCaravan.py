@@ -98,7 +98,7 @@ lblStatArena = QtBind.createLabel(gui, '🪙 Arena: 0' + _STAT_PAD, 165, 284)
 lblStatGold = QtBind.createLabel(gui, '💰 Gold: 0' + _STAT_PAD, 320, 284)
 lblStatUptime = QtBind.createLabel(gui, '⏲ Up: 0m' + _STAT_PAD, 520, 284)
 QtBind.createButton(gui, 'btn_reset_stats_clicked', '↻ Reset', 595, 282)
-btnGithub = QtBind.createButton(gui, 'btn_github_clicked', '  ★  Gado  ★  ', 605, 130)
+btnGithub = QtBind.createButton(gui, 'btn_github_clicked', '  ⭐  Gado  ⭐  ', 605, 130)
 _try_style_github(btnGithub)
 
 ROUTE_SCRIPT = '''walk,6430,1099,-32
