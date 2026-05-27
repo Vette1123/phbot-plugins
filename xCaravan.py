@@ -154,9 +154,9 @@ walk,4485,856,77
 walk,4467,890,51
 walk,4456,914,49
 walk,4451,922,48
-wait,500
+wait,2000
 teleport,Ferry Ticket Seller Chau,Ferry Ticket Seller Hageuk
-wait,500
+wait,2000
 walk,4110,1259,42
 walk,4098,1288,63
 walk,4077,1326,70
@@ -243,9 +243,9 @@ walk,1611,-264,-56
 walk,1584,-285,-56
 walk,1573,-294,-57
 walk,1566,-295,-28
-wait,500
+wait,2000
 teleport,Boat Ticket Seller Asa,Boat Ticket Seller Asimo
-wait,500
+wait,2000
 walk,1070,-302,-34
 walk,1028,-300,-76
 walk,997,-294,-111
@@ -375,9 +375,9 @@ walk,4489,840,105
 walk,4472,876,58
 walk,4459,904,49
 walk,4453,919,48
-wait,500
+wait,2000
 teleport,Ferry Ticket Seller Chau,Ferry Ticket Seller Hageuk
-wait,500
+wait,2000
 walk,4130,1237,40
 walk,4124,1266,44
 walk,4108,1297,57
@@ -500,9 +500,9 @@ walk,1626,-5,-17
 walk,1599,-12,-23
 walk,1586,-16,-20
 walk,1582,-17,-20
-wait,500
+wait,2000
 teleport,Boat Ticket Seller Salmai,Boat Ticket Seller Rahan
-wait,500
+wait,2000
 walk,1025,-38,-21
 walk,997,-21,-18
 walk,969,-4,-20
@@ -549,7 +549,7 @@ use,returnscroll
 
 TRADER_ROUTE_SCRIPT = HUNTER_ROUTE_SCRIPT \
     .replace('begintargettrading', 'wait,8000') \
-    .replace('settletargettrading', 'wait,500')
+    .replace('settletargettrading', 'wait,2000')
 
 TRADER_START_X = 6488
 TRADER_START_Y = 1014
