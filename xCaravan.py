@@ -579,7 +579,7 @@ DEFAULT_CONFIG = {
     'verbose_logs': False,
     'box_name': DEFAULT_BOX_NAME,
     'box_limit': 1,
-    'scan_ms': 30000,
+    'scan_ms': 5000,
     'suit_filter': 'Trader',
     'final_box_min': 20,
     'final_teleports': 3,
@@ -799,9 +799,60 @@ def _set_suit(text):
     QtBind.setText(gui, lblSuit, '%s %s%s' % (glyph, t, _PAD))
 
 
+_log_file_warned = False
+_phbot_log = log  # capture the original phBot log before we shadow it
+
+
+def _log_path():
+    # Per-character log so each account has its own clean trace. Falls back
+    # to a shared file before character data is available (e.g. very early
+    # at module load, before joined_game fires).
+    try:
+        base = get_config_dir()
+    except Exception:
+        base = os.path.dirname(os.path.abspath(__file__))
+    char = _character_name() if 'loaded_char_name' in globals() else 'default'
+    if not char or char == 'default':
+        return os.path.join(base, '%s.log' % pName)
+    return os.path.join(base, '%s_%s.log' % (pName, char))
+
+
+def _log_to_file(message):
+    global _log_file_warned
+    try:
+        path = _log_path()
+        stamp = time.strftime('%Y-%m-%d %H:%M:%S')
+        line = '[%s] %s\n' % (stamp, message)
+        with open(path, 'a', encoding='utf-8') as f:
+            f.write(line)
+    except Exception as ex:
+        if not _log_file_warned:
+            _log_file_warned = True
+            try:
+                _phbot_log('[%s] Dedicated log write failed: %s' % (pName, ex))
+            except Exception:
+                pass
+
+
+def log(message):
+    # Shadow phBot's log so every line emitted by xCaravan is captured in
+    # the dedicated xCaravan.log alongside phBot's main log. Other plugins
+    # are unaffected — this rebinding lives only in this module's namespace.
+    try:
+        _log_to_file(str(message))
+    except Exception:
+        pass
+    try:
+        _phbot_log(message)
+    except Exception:
+        pass
+
+
 def _log(message, force=False):
-    if config.get('verbose_logs', False):
+    if force or config.get('verbose_logs', False):
         log('[%s] %s' % (pName, message))
+    else:
+        _log_to_file('[%s] %s' % (pName, message))
 
 
 def _error(message):
@@ -1092,8 +1143,8 @@ def _load_config():
             _error('Could not read config: %s' % ex)
     if _normalize(config.get('box_name')) == 'special box':
         config['box_name'] = DEFAULT_BOX_NAME
-    if config.get('scan_ms') in (5000, 15000, 60000):
-        config['scan_ms'] = 30000
+    if config.get('scan_ms') in (15000, 30000, 60000):
+        config['scan_ms'] = 5000
     if config.get('final_box_min') == 50:
         config['final_box_min'] = 20
     _write_gui()
@@ -1178,6 +1229,36 @@ def _box_count(debug=False):
             if debug:
                 probe_report.append('%s=err:%s' % (func_name, ex))
 
+    # Query BOTH inventory APIs and keep whichever has more matching boxes —
+    # get_inventory() can return a stale snapshot while phBot is auto-paused
+    # on a full pouch, so it may report fewer sacks than get_inventory_data().
+    # Previously this loop broke on the first non-empty source and missed the
+    # truer count.
+    inv_candidates = []
+    # Scan grab-pet inventories too — for AFK botting, mob-drop trader sacks
+    # accumulate in the grab pet, not the character inventory. phBot's pet
+    # inventory shows the same "121/120" counter the user sees in-game.
+    pets_fn = globals().get('get_pets')
+    pet_inv_fn = globals().get('get_pet_inventory')
+    if callable(pets_fn) and callable(pet_inv_fn):
+        try:
+            pets = pets_fn() or {}
+        except Exception:
+            pets = {}
+        for uid, pet in (pets.items() if isinstance(pets, dict) else []):
+            try:
+                pet_inv = pet_inv_fn(uid)
+            except Exception:
+                pet_inv = None
+            items = _container_items(pet_inv) if pet_inv else []
+            if debug:
+                pet_label = 'pet#%s' % uid
+                if isinstance(pet, dict):
+                    pet_label = pet.get('name') or pet.get('type') or pet_label
+                probe_report.append('pet_inv(%s)=%d items' % (pet_label, len(items)))
+            if items:
+                sources.append(('get_pet_inventory(%s)' % uid, items))
+
     for func_name in ('get_inventory', 'get_inventory_data'):
         func = globals().get(func_name)
         if not func:
@@ -1194,11 +1275,25 @@ def _box_count(debug=False):
                     (' gold=%s' % gold) if gold is not None else ''
                 ))
             if items:
-                sources.append((func_name, items))
-                break
+                inv_candidates.append((func_name, items))
         except Exception as ex:
             if debug:
                 probe_report.append('%s=err:%s' % (func_name, ex))
+
+    best_inv = None
+    best_inv_count = -1
+    for func_name, items in inv_candidates:
+        c = 0
+        for it in items:
+            if not it:
+                continue
+            if any(cand in _item_text(it) for cand in box_filters):
+                c += _item_quantity(it)
+        if c > best_inv_count:
+            best_inv_count = c
+            best_inv = (func_name, items)
+    if best_inv is not None:
+        sources.append(best_inv)
 
     names = []
     seen_names = []
@@ -1225,12 +1320,124 @@ def _box_count(debug=False):
             ' | '.join(seen_names[:12])
         ))
 
+    if debug:
+        # Always dump per-API probe report so we can see what each phBot
+        # pouch/inventory API actually returns — needed to find an API
+        # that reports the real in-game job-pouch counter.
+        log('[%s] Scan probes: %s' % (pName, ' | '.join(probe_report) if probe_report else 'none'))
+
+        # Dump unmatched items in regular inventory (slot 13+) so the user
+        # can identify variant sack names that need to be added as aliases.
+        unmatched = []
+        for source_name, items in sources:
+            if not source_name.startswith('get_inventory'):
+                continue
+            for slot, item in enumerate(items):
+                if slot < 13 or not item:
+                    continue
+                item_text = _item_text(item)
+                if not any(candidate in item_text for candidate in box_filters):
+                    label = item.get('name') or item.get('servername') or '?'
+                    unmatched.append('slot%d:%s' % (slot, label))
+        empties = _empty_regular_slot_count()
+        log('[%s] Scan: matched %d boxes, %d empty slots, %d unmatched items in inv: %s' % (
+            pName, total, empties, len(unmatched),
+            ', '.join(unmatched[:20]) if unmatched else 'none'
+        ))
+
+        # Dump the contents of get_job_pouch in detail so we can see how
+        # the in-game "120/120" pouch counter maps onto items + quantities.
+        jp_fn = globals().get('get_job_pouch')
+        if callable(jp_fn):
+            try:
+                jp = jp_fn()
+            except Exception as ex:
+                jp = None
+                log('[%s] get_job_pouch() raised %s' % (pName, ex))
+            if isinstance(jp, dict):
+                jp_items = jp.get('items') or []
+                qty_sum = 0
+                item_dump = []
+                for slot, it in enumerate(jp_items):
+                    if not it:
+                        continue
+                    qty = _item_quantity(it)
+                    qty_sum += qty
+                    name = it.get('name') or it.get('servername') or '?'
+                    item_dump.append('s%d:%s x%d' % (slot, name, qty))
+                log('[%s] JobPouch top-level: %s | sum_qty=%d slot_count=%d' % (
+                    pName, {k: v for k, v in jp.items() if k != 'items'}, qty_sum, len(jp_items)))
+                log('[%s] JobPouch items: %s' % (pName, ' | '.join(item_dump[:40]) if item_dump else 'empty'))
+
+        # Discover any phBot global we haven't named yet that looks pouch- /
+        # job- / refresh-related. Logged once per scan so we can see in the
+        # field if a new API appeared (e.g. update_inventory, sync_pouch).
+        keywords = ('pouch', 'job', 'goods', 'specialty', 'trade',
+                    'refresh', 'update', 'sync', 'request', 'inventory')
+        discovered = []
+        for name, obj in list(globals().items()):
+            if not callable(obj) or name.startswith('_'):
+                continue
+            lname = name.lower()
+            if any(k in lname for k in keywords):
+                discovered.append(name)
+        if discovered:
+            log('[%s] phBot callables (pouch/job/refresh-ish): %s' % (
+                pName, ', '.join(sorted(set(discovered)))))
+
+        # Probe every plausible job-pouch-shaped API and dump the raw
+        # shape so we can identify whichever one carries the real pouch
+        # counter (e.g. 121/120) the user sees in-game.
+        for func_name in ('get_job_pouch', 'get_job_pouch_data', 'get_job_inventory',
+                          'get_job_data', 'get_job', 'get_specialty', 'get_specialty_goods',
+                          'get_trade_goods', 'get_character_data'):
+            func = globals().get(func_name)
+            if not func:
+                continue
+            try:
+                raw = func()
+            except Exception as ex:
+                log('[%s] Probe %s() raised %s' % (pName, func_name, ex))
+                continue
+            if raw is None:
+                log('[%s] Probe %s() -> None' % (pName, func_name))
+                continue
+            if isinstance(raw, dict):
+                keys = list(raw.keys())
+                preview = {}
+                for k in keys[:25]:
+                    v = raw.get(k)
+                    if isinstance(v, (int, float, str, bool)) or v is None:
+                        preview[k] = v
+                    elif isinstance(v, list):
+                        preview[k] = '<list:%d>' % len(v)
+                    elif isinstance(v, dict):
+                        preview[k] = '<dict:%s>' % ','.join(list(v.keys())[:5])
+                    else:
+                        preview[k] = '<%s>' % type(v).__name__
+                log('[%s] Probe %s() keys=%s preview=%s' % (pName, func_name, keys, preview))
+            elif isinstance(raw, list):
+                log('[%s] Probe %s() list len=%d sample=%s' % (pName, func_name, len(raw), raw[:3]))
+            else:
+                log('[%s] Probe %s() -> %r' % (pName, func_name, raw))
+
     limit = config.get('box_limit', 1)
-    glyph = '🟢' if total >= limit else ('🟡' if total > 0 else '⚪')
-    QtBind.setText(gui, lblBox, '%s Pouch: %d / %d  (route at %d · min %d)%s' % (
+    pet_used, pet_total, pet_empty = _grab_pet_fullness()
+    pet_label = (' · 🐴 %d/%d' % (pet_used, pet_total)) if pet_total > 0 else ''
+    jp_filled, jp_capacity, jp_goods, jp_goods_cap, _jp_smax = _job_pouch_state()
+    if jp_goods_cap > 0:
+        jp_label = ' · 🎒 %d/%d (%d/%d stacks)' % (jp_goods, jp_goods_cap, jp_filled, jp_capacity)
+    else:
+        jp_label = ''
+    jp_full = (jp_goods_cap > 0 and jp_goods >= jp_goods_cap)
+    pet_full_ui = (pet_total > 0 and pet_empty == 0)
+    glyph = '🟢' if (jp_full or total >= limit or pet_full_ui) else ('🟡' if (jp_filled > 0 or total > 0) else '⚪')
+    QtBind.setText(gui, lblBox, '%s Pouch: %d / %d%s%s  (route at %d · min %d)%s' % (
         glyph,
         total,
         limit,
+        jp_label,
+        pet_label,
         limit,
         config.get('final_box_min', 70),
         _PAD
@@ -1252,6 +1459,155 @@ def _empty_slot():
         if slot >= 13 and not item:
             return slot
     return -1
+
+
+def _empty_regular_slot_count():
+    # Counts empty slots in the regular inventory area (slot 13 and above).
+    # When this is 0 the inventory is physically full, regardless of whether
+    # the name filter caught every item — that's the real "pouch full" signal.
+    items = _inventory_items()
+    if not items:
+        return -1
+    empty = 0
+    for slot, item in enumerate(items):
+        if slot >= 13 and not item:
+            empty += 1
+    return empty
+
+
+_pouch_high_water = {'filled': 0, 'goods': 0, 'capacity': 0, 'goods_cap': 0}
+
+
+def _job_pouch_state():
+    # Reads the in-game job pouch and returns
+    # (filled_stacks, capacity, goods_count, goods_cap, stack_max).
+    #
+    # - capacity   = pouch slot count (Trader Sack Lv 4 → 24)
+    # - stack_max  = max quantity per slot (specialty goods → 5; detected from
+    #                live items, falls back to 5)
+    # - goods_cap  = capacity * stack_max  (the "120" on the in-game UI)
+    # - goods_count= sum of qty across filled stacks (the live "X/120")
+    # - filled_stacks= number of non-empty slots
+    #
+    # phBot's `get_job_pouch()` cache can drift below the real in-game count
+    # while looting (we've seen plugin=115, in-game=120). To compensate we keep
+    # a session high-water mark: once a higher value is observed it's not
+    # forgotten until the route fires and resets it. This is reset by
+    # `_pouch_reset_after_trade()` after a successful sale.
+    fn = globals().get('get_job_pouch')
+    if not callable(fn):
+        return (-1, -1, -1, -1, -1)
+    try:
+        jp = fn()
+    except Exception:
+        return (-1, -1, -1, -1, -1)
+    if not isinstance(jp, dict):
+        return (-1, -1, -1, -1, -1)
+
+    capacity = jp.get('size')
+    capacity = int(capacity) if isinstance(capacity, (int, float)) else -1
+    items = jp.get('items') or []
+
+    filled = 0
+    goods = 0
+    stack_max_seen = 0
+    for it in items:
+        if not it:
+            continue
+        filled += 1
+        qty = _item_quantity(it)
+        goods += qty
+        if qty > stack_max_seen:
+            stack_max_seen = qty
+        # phBot item dicts often include 'max_stack'; honour it if present.
+        try:
+            ms = it.get('max_stack') or it.get('stack_max') or it.get('quantity_max')
+            if isinstance(ms, (int, float)) and int(ms) > stack_max_seen:
+                stack_max_seen = int(ms)
+        except Exception:
+            pass
+
+    if capacity <= 0:
+        capacity = len(items) if items else -1
+
+    stack_max = stack_max_seen if stack_max_seen > 0 else 5
+    goods_cap = capacity * stack_max if capacity > 0 else -1
+
+    # Session high-water — protects against phBot reporting stale lower values.
+    hw = _pouch_high_water
+    if capacity > 0:
+        hw['capacity'] = max(hw['capacity'], capacity)
+        hw['goods_cap'] = max(hw['goods_cap'], goods_cap)
+        if filled > hw['filled']:
+            hw['filled'] = filled
+        if goods > hw['goods']:
+            hw['goods'] = goods
+        filled = max(filled, hw['filled'])
+        goods = max(goods, hw['goods'])
+
+    return (filled, capacity, goods, goods_cap, stack_max)
+
+
+def _pouch_reset_after_trade():
+    _pouch_high_water['filled'] = 0
+    _pouch_high_water['goods'] = 0
+
+
+def handle_joymax(opcode, data):
+    # Real-time pouch refresh. Any packet related to specialty goods /
+    # inventory updates invalidates our cached high-water-mark check and pokes
+    # the event loop to re-read on the next tick. We don't try to identify
+    # specific opcodes — every Joymax frame is cheap to handle and pouches
+    # rarely change outside of looting, so re-reading is safe.
+    try:
+        # Pull a fresh snapshot; the call itself is what we care about because
+        # phBot updates its cache lazily on access in some versions.
+        fn = globals().get('get_job_pouch')
+        if callable(fn):
+            jp = fn()
+            if isinstance(jp, dict):
+                items = jp.get('items') or []
+                filled = sum(1 for it in items if it)
+                goods = sum(_item_quantity(it) for it in items if it)
+                hw = _pouch_high_water
+                if filled > hw['filled']:
+                    hw['filled'] = filled
+                if goods > hw['goods']:
+                    hw['goods'] = goods
+    except Exception:
+        pass
+    return True
+
+
+def _grab_pet_fullness():
+    # Returns (used, total, empty) across all grab-pet inventories. While AFK
+    # botting, mob drops accumulate in the grab pet, and when it fills phBot
+    # stops looting — this is the "121/120" pouch counter visible in-game.
+    pets_fn = globals().get('get_pets')
+    pet_inv_fn = globals().get('get_pet_inventory')
+    if not (callable(pets_fn) and callable(pet_inv_fn)):
+        return (-1, -1, -1)
+    try:
+        pets = pets_fn() or {}
+    except Exception:
+        return (-1, -1, -1)
+    used = 0
+    total = 0
+    for uid in (pets.keys() if isinstance(pets, dict) else []):
+        try:
+            inv = pet_inv_fn(uid)
+        except Exception:
+            inv = None
+        if not isinstance(inv, dict):
+            continue
+        items = inv.get('items') or []
+        for it in items:
+            total += 1
+            if it:
+                used += 1
+    if total <= 0:
+        return (-1, -1, -1)
+    return (used, total, total - used)
 
 
 def _job_slot_item():
@@ -1700,6 +2056,7 @@ def _run_route_script():
 
 def _finish_route():
     _stats_record_run_complete()
+    _pouch_reset_after_trade()
     count = _box_count()
     if config.get('reverse_after', False):
         # Reverse return was already issued by _fire_reverse_return after the
@@ -1900,10 +2257,7 @@ def joined_game():
         count = _box_count(True)
         _log('Join scan: %d boxes (limit %d).' % (count, config.get('box_limit', 1)), True)
         if count >= config.get('box_limit', 1):
-            if not _bot_is_running():
-                _log('Join scan: pouch full but bot not running; waiting until botting.', True)
-            else:
-                _trigger_return_for_route()
+            _trigger_return_for_route()
     except Exception as ex:
         _log('Join scan failed: %s' % ex, True)
 
@@ -1996,14 +2350,29 @@ def event_loop():
                     last_scan_at = now - scan_ms + 3000
             else:
                 empty_inventory_scans = 0
-            if state == 'idle' and count >= limit:
-                if not _bot_is_running() and not bot_ever_seen_running:
-                    _set_status('idle · pouch full, waiting for bot to start')
-                    return
-                if not _bot_is_running():
-                    log('[%s] Pouch full: %d / %d. Bot asleep (likely pouch-full auto-pause); firing route anyway.' % (pName, count, limit))
-                else:
-                    log('[%s] Pouch full: %d / %d. Starting route.' % (pName, count, limit))
+            # Safety-net for the off-by-N stale-snapshot case: when phBot
+            # auto-pauses the bot because the pouch is actually full, its
+            # cached inventory can stay a few sacks short of `limit` forever
+            # and the strict `count >= limit` gate never fires. If the bot
+            # was running this session and is now stopped while we're close
+            # to the limit, treat it as full and trigger anyway.
+            # Bot-running gate removed — caused stuck pouches to never
+            # trigger because the gate required either an active bot or a
+            # prior "bot was seen running" flag, both of which can be False
+            # right after a plugin reload or on alts where get_status()
+            # reports oddly. We now trigger purely on inventory signals.
+            empty_slots = _empty_regular_slot_count()
+            inventory_physically_full = (empty_slots == 0 and count > 0)
+            pet_used, pet_total, pet_empty = _grab_pet_fullness()
+            pet_full = (pet_total > 0 and pet_empty == 0)
+            jp_filled, jp_capacity, jp_goods, jp_goods_cap, _jp_smax = _job_pouch_state()
+            # Strict: only fire when job-pouch goods are at the true cap
+            # (e.g. 120/120). Do NOT trigger off regular inventory fill, grab
+            # pet fill, or matched-box count — those are not the job pouch.
+            job_pouch_full = (jp_goods_cap > 0 and jp_goods >= jp_goods_cap)
+            if state == 'idle' and job_pouch_full:
+                log('[%s] Job pouch full (%d/%d goods, %d/%d stacks); starting route.' % (
+                    pName, jp_goods, jp_goods_cap, jp_filled, jp_capacity))
                 _trigger_return_for_route()
                 return
         if state == 'idle':
