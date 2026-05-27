@@ -7,12 +7,27 @@ import time
 import webbrowser
 
 GITHUB_URL = 'https://github.com/Vette1123'
+GITHUB_BTN_STYLE = (
+    'QPushButton{background:#ffd54a;color:#222;font-weight:bold;'
+    'border:1px solid #8b6b00;border-radius:6px;padding:2px 10px;}'
+    'QPushButton:hover{background:#ffe27a;}'
+)
 
 def btn_github_clicked():
     try:
         webbrowser.open(GITHUB_URL)
     except Exception:
         pass
+
+def _try_style_github(btn):
+    for fn_name in ('setStyleSheet', 'setStylesheet', 'setStyle'):
+        fn = getattr(QtBind, fn_name, None)
+        if callable(fn):
+            try:
+                fn(gui, btn, GITHUB_BTN_STYLE)
+                return
+            except Exception:
+                pass
 
 pName = 'xCaravan'
 pVersion = '1.0.0'
@@ -83,7 +98,8 @@ lblStatArena = QtBind.createLabel(gui, '🪙 Arena: 0' + _STAT_PAD, 165, 284)
 lblStatGold = QtBind.createLabel(gui, '💰 Gold: 0' + _STAT_PAD, 320, 284)
 lblStatUptime = QtBind.createLabel(gui, '⏲ Up: 0m' + _STAT_PAD, 520, 284)
 QtBind.createButton(gui, 'btn_reset_stats_clicked', '↻ Reset', 595, 282)
-QtBind.createButton(gui, 'btn_github_clicked', '  ★  Gado  ★  ', 605, 130)
+btnGithub = QtBind.createButton(gui, 'btn_github_clicked', '  ★  Gado  ★  ', 605, 130)
+_try_style_github(btnGithub)
 
 ROUTE_SCRIPT = '''walk,6430,1099,-32
 walk,6428,1113,0
@@ -1176,6 +1192,8 @@ def _save_config():
 
 
 def _item_quantity(item):
+    if not isinstance(item, dict):
+        return 1
     for key in ('quantity', 'qty', 'count', 'stack'):
         try:
             if key in item:
@@ -1450,11 +1468,14 @@ def handle_joymax(opcode, data):
             jp = fn()
             if isinstance(jp, dict):
                 items = jp.get('items') or []
-                goods = sum(_item_quantity(it) for it in items if it)
+                goods = 0
+                for it in items:
+                    if isinstance(it, dict):
+                        goods += _item_quantity(it)
                 hw = _pouch_high_water
                 if goods > hw['goods']:
                     hw['goods'] = goods
-    except Exception:
+    except BaseException:
         pass
     return True
 

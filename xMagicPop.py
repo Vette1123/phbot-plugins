@@ -5,12 +5,27 @@ import time
 import webbrowser
 
 GITHUB_URL = 'https://github.com/Vette1123'
+GITHUB_BTN_STYLE = (
+    'QPushButton{background:#ffd54a;color:#222;font-weight:bold;'
+    'border:1px solid #8b6b00;border-radius:6px;padding:2px 10px;}'
+    'QPushButton:hover{background:#ffe27a;}'
+)
 
 def btn_github_clicked():
     try:
         webbrowser.open(GITHUB_URL)
     except Exception:
         pass
+
+def _try_style_github(btn):
+    for fn_name in ('setStyleSheet', 'setStylesheet', 'setStyle'):
+        fn = getattr(QtBind, fn_name, None)
+        if callable(fn):
+            try:
+                fn(gui, btn, GITHUB_BTN_STYLE)
+                return
+            except Exception:
+                pass
 
 pName = 'xMagicPop'
 pVersion = '2.0.0'
@@ -124,7 +139,8 @@ QtBind.createLabel(gui, 'Progress:',     12, _y)
 lbl_progress = QtBind.createLabel(gui, 'Attempts 0  |  Cycles 0  |  Elapsed 0s' + _PAD, 110, _y)
 
 _y += 32
-QtBind.createButton(gui, 'btn_github_clicked', '  ★  (Gado) GitHub  ★  ', 12, _y)
+btnGithub = QtBind.createButton(gui, 'btn_github_clicked', '  ★  (Gado) GitHub  ★  ', 175, 200)
+_try_style_github(btnGithub)
 
 # --- RIGHT: Inventory ---
 QtBind.createLabel(gui, '--- Inventory (Magic Pop slot range) ---', 395, 8)

@@ -6,12 +6,27 @@ import time
 import webbrowser
 
 GITHUB_URL = 'https://github.com/Vette1123'
+GITHUB_BTN_STYLE = (
+    'QPushButton{background:#ffd54a;color:#222;font-weight:bold;'
+    'border:1px solid #8b6b00;border-radius:6px;padding:2px 10px;}'
+    'QPushButton:hover{background:#ffe27a;}'
+)
 
 def btn_github_clicked():
     try:
         webbrowser.open(GITHUB_URL)
     except Exception:
         pass
+
+def _try_style_github(btn):
+    for fn_name in ('setStyleSheet', 'setStylesheet', 'setStyle'):
+        fn = getattr(QtBind, fn_name, None)
+        if callable(fn):
+            try:
+                fn(gui, btn, GITHUB_BTN_STYLE)
+                return
+            except Exception:
+                pass
 
 pName = 'xShining'
 pVersion = '4.1.2'
@@ -45,7 +60,8 @@ txtDelay = QtBind.createLineEdit(gui, str(DEFAULT_DELAY_MS), 65, 88, 60, 20)
 
 lblStatus = QtBind.createLabel(gui, 'Status: Waiting...', 6, 118)
 lblCount  = QtBind.createLabel(gui, 'Broken Stones: 0',   6, 138)
-QtBind.createButton(gui, 'btn_github_clicked', '  ★  (Gado) GitHub  ★  ', 6, 165)
+btnGithub = QtBind.createButton(gui, 'btn_github_clicked', '  ★  (Gado) GitHub  ★  ', 6, 165)
+_try_style_github(btnGithub)
 
 # ______________________________ Helper Methods ______________________________ #
 

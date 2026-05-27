@@ -8,12 +8,27 @@ import re
 import webbrowser
 
 GITHUB_URL = 'https://github.com/Vette1123'
+GITHUB_BTN_STYLE = (
+    'QPushButton{background:#ffd54a;color:#222;font-weight:bold;'
+    'border:1px solid #8b6b00;border-radius:6px;padding:2px 10px;}'
+    'QPushButton:hover{background:#ffe27a;}'
+)
 
 def btn_github_clicked():
     try:
         webbrowser.open(GITHUB_URL)
     except Exception:
         pass
+
+def _try_style_github(btn):
+    for fn_name in ('setStyleSheet', 'setStylesheet', 'setStyle'):
+        fn = getattr(QtBind, fn_name, None)
+        if callable(fn):
+            try:
+                fn(gui, btn, GITHUB_BTN_STYLE)
+                return
+            except Exception:
+                pass
 
 pName = 'xAutoConfig'
 pVersion = '2.0.0'
@@ -122,7 +137,8 @@ btnCopy = QtBind.createButton(gui, 'btnCopy_clicked', '     Copy Settings   --> 
 # ---------- Footer: status + hint ----------
 lblStatus = QtBind.createLabel(gui, 'Status:  ready.' + (' ' * 80), 12, 188)
 lblHint   = QtBind.createLabel(gui, 'Tip: leave "new name" empty to use the dropdown.  Example new name:  MyNewAlt   or   Astyra_MyNewAlt', 12, 210)
-QtBind.createButton(gui, 'btn_github_clicked', '  ★  (Gado) GitHub  ★  ', 360, 178)
+btnGithub = QtBind.createButton(gui, 'btn_github_clicked', '  ★  (Gado) GitHub  ★  ', 360, 178)
+_try_style_github(btnGithub)
 
 # ______________________________ UI logic ______________________________ #
 

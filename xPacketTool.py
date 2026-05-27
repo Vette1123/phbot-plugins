@@ -11,12 +11,27 @@ pUrl = 'https://raw.githubusercontent.com/Vette1123/phbot-plugins/main/xPacketTo
 # GitHub: https://github.com/Vette1123
 
 GITHUB_URL = 'https://github.com/Vette1123'
+GITHUB_BTN_STYLE = (
+	'QPushButton{background:#ffd54a;color:#222;font-weight:bold;'
+	'border:1px solid #8b6b00;border-radius:6px;padding:2px 10px;}'
+	'QPushButton:hover{background:#ffe27a;}'
+)
 
 def btn_github_clicked():
 	try:
 		webbrowser.open(GITHUB_URL)
 	except Exception:
 		pass
+
+def _try_style_github(btn):
+	for fn_name in ('setStyleSheet', 'setStylesheet', 'setStyle'):
+		fn = getattr(QtBind, fn_name, None)
+		if callable(fn):
+			try:
+				fn(gui, btn, GITHUB_BTN_STYLE)
+				return
+			except Exception:
+				pass
 
 # ______________________________ Initializing ______________________________ #
 
@@ -35,7 +50,9 @@ cbxEncrypted = QtBind.createCheckBox(gui, 'cbxEnc_clicked','Encrypted',_x+432,_y
 _y+=25
 btnInjectClient = QtBind.createButton(gui,'btnInjectClient_clicked',"  Inject To Client  ",_x+308,_y)
 btnInjectServer = QtBind.createButton(gui,'btnInjectServer_clicked',"  Inject To Server  ",_x+404,_y)
-QtBind.createButton(gui,'btn_github_clicked','  ★  (Gado) GitHub  ★  ',6,_y+35)
+_y+=55
+btnGithub = QtBind.createButton(gui,'btn_github_clicked','  ★  (Gado) GitHub  ★  ',6,_y)
+_try_style_github(btnGithub)
 
 # Filter
 _x=720-176

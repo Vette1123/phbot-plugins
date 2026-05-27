@@ -11,12 +11,27 @@ import time
 import webbrowser
 
 GITHUB_URL = 'https://github.com/Vette1123'
+GITHUB_BTN_STYLE = (
+	'QPushButton{background:#ffd54a;color:#222;font-weight:bold;'
+	'border:1px solid #8b6b00;border-radius:6px;padding:2px 10px;}'
+	'QPushButton:hover{background:#ffe27a;}'
+)
 
 def btn_github_clicked():
 	try:
 		webbrowser.open(GITHUB_URL)
 	except Exception:
 		pass
+
+def _try_style_github(btn):
+	for fn_name in ('setStyleSheet', 'setStylesheet', 'setStyle'):
+		fn = getattr(QtBind, fn_name, None)
+		if callable(fn):
+			try:
+				fn(gui, btn, GITHUB_BTN_STYLE)
+				return
+			except Exception:
+				pass
 
 pName = 'xControl'
 pVersion = '1.9.1'
@@ -44,7 +59,8 @@ tbxLeaders = QtBind.createLineEdit(gui,"",525,30,110,20)
 lstLeaders = QtBind.createList(gui,525,53,110,242)
 btnAddLeader = QtBind.createButton(gui,'btnAddLeader_clicked',"    Add   ",635,29)
 btnRemLeader = QtBind.createButton(gui,'btnRemLeader_clicked',"     Remove     ",635,52)
-QtBind.createButton(gui,'btn_github_clicked','  ★  Gado  ★  ',635,76)
+btnGithub = QtBind.createButton(gui,'btn_github_clicked','  ★  Gado  ★  ',635,76)
+_try_style_github(btnGithub)
 
 # Scrollable command reference — single tall list, fills most of the panel.
 QtBind.createLabel(gui,'  ── Command Reference ──',11,48)
