@@ -549,7 +549,7 @@ use,returnscroll
 
 TRADER_ROUTE_SCRIPT = HUNTER_ROUTE_SCRIPT \
     .replace('begintargettrading', 'wait,8000') \
-    .replace('settletargettrading', 'wait,2000')
+    .replace('settletargettrading', 'wait,5000')
 
 TRADER_START_X = 6488
 TRADER_START_Y = 1014
