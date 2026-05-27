@@ -137,7 +137,7 @@ btnCopy = QtBind.createButton(gui, 'btnCopy_clicked', '     Copy Settings   --> 
 # ---------- Footer: status + hint ----------
 lblStatus = QtBind.createLabel(gui, 'Status:  ready.' + (' ' * 80), 12, 188)
 lblHint   = QtBind.createLabel(gui, 'Tip: leave "new name" empty to use the dropdown.  Example new name:  MyNewAlt   or   Astyra_MyNewAlt', 12, 210)
-btnGithub = QtBind.createButton(gui, 'btn_github_clicked', ' 🟡🔗 Gado @ GitHub 🔗🟡 ', 360, 178)
+btnGithub = QtBind.createButton(gui, 'btn_github_clicked', '  ⭐  (Gado) GitHub  ⭐  ', 360, 178)
 _try_style_github(btnGithub)
 
 # ______________________________ UI logic ______________________________ #

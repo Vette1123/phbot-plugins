@@ -51,7 +51,7 @@ _y+=25
 btnInjectClient = QtBind.createButton(gui,'btnInjectClient_clicked',"  Inject To Client  ",_x+308,_y)
 btnInjectServer = QtBind.createButton(gui,'btnInjectServer_clicked',"  Inject To Server  ",_x+404,_y)
 _y+=55
-btnGithub = QtBind.createButton(gui,'btn_github_clicked',' 🟡🔗 Gado @ GitHub 🔗🟡 ',6,_y)
+btnGithub = QtBind.createButton(gui,'btn_github_clicked','  ⭐  (Gado) GitHub  ⭐  ',6,_y)
 _try_style_github(btnGithub)
 
 # Filter

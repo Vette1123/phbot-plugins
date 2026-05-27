@@ -60,7 +60,7 @@ txtDelay = QtBind.createLineEdit(gui, str(DEFAULT_DELAY_MS), 65, 88, 60, 20)
 
 lblStatus = QtBind.createLabel(gui, 'Status: Waiting...', 6, 118)
 lblCount  = QtBind.createLabel(gui, 'Broken Stones: 0',   6, 138)
-btnGithub = QtBind.createButton(gui, 'btn_github_clicked', ' 🟡🔗 Gado @ GitHub 🔗🟡 ', 6, 165)
+btnGithub = QtBind.createButton(gui, 'btn_github_clicked', '  ⭐  (Gado) GitHub  ⭐  ', 6, 165)
 _try_style_github(btnGithub)
 
 # ______________________________ Helper Methods ______________________________ #
