@@ -44,7 +44,7 @@ tbxLeaders = QtBind.createLineEdit(gui,"",525,30,110,20)
 lstLeaders = QtBind.createList(gui,525,53,110,242)
 btnAddLeader = QtBind.createButton(gui,'btnAddLeader_clicked',"    Add   ",635,29)
 btnRemLeader = QtBind.createButton(gui,'btnRemLeader_clicked',"     Remove     ",635,52)
-QtBind.createButton(gui,'btn_github_clicked',' (Gado) GitHub ',635,76)
+QtBind.createButton(gui,'btn_github_clicked','  ★  Gado  ★  ',635,76)
 
 # Scrollable command reference — single tall list, fills most of the panel.
 QtBind.createLabel(gui,'  ── Command Reference ──',11,48)

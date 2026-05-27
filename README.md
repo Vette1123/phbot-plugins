@@ -11,6 +11,7 @@ Personal collection of [phBot](https://www.elitepvpers.com/forum/sro-pserver-bot
 | [`xAutoConfig.py`](./xAutoConfig.py) | Per-character profile/config switcher. Auto-loads the right phBot config, training script, and DB3 sidecar files when a character logs in, so multi-account setups boot into the correct profile without manual swaps. |
 | [`xMagicPop.py`](./xMagicPop.py) | Magic Pop spinner. Loops Magic Pop "play" packets across every Magic Pop item in your inventory (Flag / Devil's Spirit S / Angel's Spirit S, M/F), with burst or timed delay and a live status panel. |
 | [`xShining.py`](./xShining.py) | iSRO fully-automatic lightstone crafting. Finds Blue/Black Stone anywhere in inventory and loops the recipe packet until depleted, with configurable speed and a broken-stones counter. |
+| [`xPacketTool.py`](./xPacketTool.py) | Packet inspector / injector. Send raw client or server packets, with a filter list to log only the opcodes you care about. |
 
 ---
 
@@ -290,7 +291,7 @@ iSRO fully-automatic lightstone crafting. Scans inventory for any Blue Stone + B
 ## Credits
 
 - All plugins maintained by **Gado** — [github.com/Vette1123](https://github.com/Vette1123)
-- `xControl` and `xAutoConfig` originally by [JellyBitz](https://github.com/JellyBitz/phBot-xPlugins); extended, rewritten, and maintained here by Gado.
+- `xControl`, `xAutoConfig`, and `xPacketTool` originally by [JellyBitz](https://github.com/JellyBitz/phBot-xPlugins); extended, rewritten, and maintained here by Gado.
 - `xCaravan`, `xMagicPop`, `xShining` written by Gado.
 
 ## License
