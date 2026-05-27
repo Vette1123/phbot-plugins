@@ -459,7 +459,16 @@ _rows = (len(EVENT_LABELS) + _COLS - 1) // _COLS
 _btn_y = _Y0 + _rows * _ROW_H + 6
 btnSave = QtBind.createButton(gui, 'btnSave_clicked', '  Save  ', 6, _btn_y)
 btnTest = QtBind.createButton(gui, 'btnTest_clicked', '  Send Test  ', 80, _btn_y)
-lblStatus = QtBind.createLabel(gui, 'Status: idle', 6, _btn_y + 28)
+# Labels auto-size to their initial text, so pad with trailing spaces to reserve
+# width for longer status messages set later (matches xCaravan's _STAT_PAD idiom).
+_STATUS_PAD = ' ' * 48
+
+
+def _set_status(msg):
+    QtBind.setText(gui, lblStatus, ('Status: ' + msg + _STATUS_PAD))
+
+
+lblStatus = QtBind.createLabel(gui, 'Status: idle' + _STATUS_PAD, 6, _btn_y + 28)
 btnGithub = QtBind.createButton(gui, 'btn_github_clicked', '  ⭐  (Gado) GitHub  ⭐  ', 6, _btn_y + 50)
 _try_style_github(btnGithub)
 
@@ -480,12 +489,12 @@ def btnSave_clicked():
     QtBind.setText(gui, txtChat, _mask_secret(config['telegram_chat_id']))
     QtBind.setText(gui, txtHook, _mask_secret(config['discord_webhook']))
     _safe_log('config saved')
-    QtBind.setText(gui, lblStatus, 'Status: saved')
+    _set_status('saved')
 
 
 def btnTest_clicked():
     _enqueue(_format('death', 'xNotify test message'))
-    QtBind.setText(gui, lblStatus, 'Status: test queued')
+    _set_status('test queued')
 
 
 _safe_log('xNotify %s loaded' % pVersion)
