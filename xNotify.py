@@ -1,6 +1,7 @@
 # xNotify - Telegram + Discord status alerts for phBot
-# Sends labeled alerts (death, bot stopped, attacked, caravan trade start/settle)
-# to Telegram and/or Discord. Other plugins emit via:  import xNotify; xNotify.notify(type, text)
+# Sends labeled alerts (death, bot stopped, attacked, caravan trade start/settle,
+# uniques, drops, level ups, chats, notices...) to Telegram and/or Discord as
+# rich cards. Other plugins emit via:  import xNotify; xNotify.notify(type, text)
 from phBot import *
 import QtBind
 import os
@@ -15,7 +16,7 @@ import webbrowser
 import hashlib
 
 pName = 'xNotify'
-pVersion = '1.3.0'
+pVersion = '1.4.0'
 pAuthor = 'Vette1123 (Gado)'
 pUrl = 'https://raw.githubusercontent.com/Vette1123/phbot-plugins/main/xNotify.py'
 
@@ -28,8 +29,6 @@ GITHUB_BTN_STYLE = (
 
 
 def _mask_secret(s):
-    """Masked display form of a secret: bullets + last 4 chars (empty stays empty).
-    phBot's QtBind has no password echo mode, so we mask the displayed text instead."""
     s = s or ''
     if not s:
         return ''
@@ -39,8 +38,6 @@ def _mask_secret(s):
 
 
 def _resolve_secret(field_text, stored):
-    """If the field still shows the mask of the stored value, it's unchanged -> keep
-    stored. Otherwise the user typed/pasted a new value -> use it."""
     field_text = (field_text or '').strip()
     if field_text == _mask_secret(stored):
         return stored
@@ -74,6 +71,7 @@ DEFAULT_CONFIG = {
     'telegram_chat_id': '',
     'discord_webhook': '',
     'cooldown_sec': 60,
+    'rich_cards': True,
     'events': {
         'death': True,
         'bot_stopped': True,
@@ -86,13 +84,23 @@ DEFAULT_CONFIG = {
         'global': True,
         'notice': True,
         'unique': True,
+        'level_up': True,
+        'rare_drop': True,
+        'guild_chat': False,
+        'party_chat': False,
+        'union_chat': False,
+        'academy_chat': False,
+        'all_chat': False,
+        'stall_chat': False,
     },
-    # Extra substrings (lowercase) that mark a global/notice as a unique sighting.
-    # Server-specific; add your server's unique names here.
-    'unique_keywords': ['unique'],
+    # name substrings (lowercase) flagging a global/notice as a unique sighting
+    'unique_keywords': ['unique', 'legend', 'legendary', 'boss', 'titan', 'demon lord'],
+    # mob 'type' / 'rarity' codes treated as uniques (phBot exposes both fields)
+    'unique_types': [3, 4, 5],
+    # Substrings that mark an item as "rare" enough to alert on (lowercase)
+    'rare_drop_keywords': ['sun ', 'moon ', 'star ', 'seal of', 'devil', 'd13', 'd14', 'd15', 'd16'],
 }
 
-# Order + labels for the GUI checkboxes
 EVENT_LABELS = [
     ('death', '⚠️ Death'),
     ('bot_stopped', '🛑 Bot stop'),
@@ -105,6 +113,14 @@ EVENT_LABELS = [
     ('global', '📢 Global'),
     ('notice', '📜 Notice'),
     ('unique', '👑 Unique'),
+    ('level_up', '⬆️ Level up'),
+    ('rare_drop', '💎 Rare drop'),
+    ('party_chat', '🎉 Party'),
+    ('guild_chat', '🛡️ Guild'),
+    ('union_chat', '🤝 Union'),
+    ('academy_chat', '🎓 Academy'),
+    ('all_chat', '🗣️ All'),
+    ('stall_chat', '🏪 Stall'),
 ]
 
 
@@ -138,19 +154,14 @@ def _safe_log(msg):
 
 
 # ______________________________ Cross-process dedup ______________________________ #
-# Server-wide events (global/notice/unique) arrive at EVERY bot running this plugin.
-# To avoid N copies when many accounts run together, the first bot to see such an
-# event claims it via an atomic marker file in a shared folder; the rest skip it.
-# Per-character events (death/attacked/pots/trade/pm) are NOT deduped — you want each.
 
-SHARED_EVENTS = {'global', 'notice', 'unique'}
-SHARED_WINDOW = {'global': 30.0, 'notice': 30.0, 'unique': 120.0}  # seconds
+SHARED_EVENTS = {'global', 'notice', 'unique', 'all_chat'}
+SHARED_WINDOW = {'global': 30.0, 'notice': 30.0, 'unique': 120.0, 'all_chat': 15.0}
 _DEDUP_DIR = os.path.join(os.path.dirname(_CFG_PATH), 'xNotify_dedup')
 _last_dedup_cleanup = 0.0
 
 
 def _dedup_cleanup(now):
-    """Delete marker files older than the longest window so the folder can't grow."""
     global _last_dedup_cleanup
     if now - _last_dedup_cleanup < 300:
         return
@@ -168,9 +179,6 @@ def _dedup_cleanup(now):
 
 
 def _claim_shared(key, window):
-    """Return True if THIS process should send the shared event. Only the first bot
-    to atomically create the marker (within `window` seconds) wins; others get False.
-    If coordination is impossible (fs error), default to True (send rather than lose)."""
     try:
         os.makedirs(_DEDUP_DIR, exist_ok=True)
     except Exception:
@@ -179,7 +187,6 @@ def _claim_shared(key, window):
     _dedup_cleanup(now)
     h = hashlib.md5(key.encode('utf-8', 'replace')).hexdigest()
     path = os.path.join(_DEDUP_DIR, h)
-    # Fresh marker present -> already claimed by some bot -> skip.
     try:
         if now - os.stat(path).st_mtime < window:
             return False
@@ -187,13 +194,11 @@ def _claim_shared(key, window):
         pass
     except Exception:
         return True
-    # Atomic create: exactly one racing process succeeds.
     try:
         fd = os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
         os.close(fd)
         return True
     except FileExistsError:
-        # Marker exists. If it's stale (past window), take it over; else skip.
         try:
             if now - os.stat(path).st_mtime >= window:
                 os.utime(path, None)
@@ -216,7 +221,6 @@ def _http_post(url, data_bytes, headers):
         with urllib.request.urlopen(req, timeout=10) as resp:
             return getattr(resp, 'status', 200)
     except urllib.error.HTTPError as e:
-        # Surface the API's reason (Telegram/Discord put it in the response body).
         try:
             detail = e.read().decode('utf-8', 'replace')
         except Exception:
@@ -224,19 +228,30 @@ def _http_post(url, data_bytes, headers):
         raise Exception('HTTP %s: %s' % (e.code, detail[:300]))
 
 
-def send_telegram(token, chat_id, text):
+def send_telegram_text(token, chat_id, text, html=False):
     if not token or not chat_id:
         return False
     url = 'https://api.telegram.org/bot%s/sendMessage' % token
-    body = urllib.parse.urlencode({'chat_id': chat_id, 'text': text}).encode('utf-8')
+    params = {'chat_id': chat_id, 'text': text, 'disable_web_page_preview': 'true'}
+    if html:
+        params['parse_mode'] = 'HTML'
+    body = urllib.parse.urlencode(params).encode('utf-8')
     _http_post(url, body, {'Content-Type': 'application/x-www-form-urlencoded'})
     return True
 
 
-def send_discord(webhook, text):
+def send_discord_text(webhook, text):
     if not webhook:
         return False
     body = json.dumps({'content': text}).encode('utf-8')
+    _http_post(webhook, body, {'Content-Type': 'application/json'})
+    return True
+
+
+def send_discord_embed(webhook, embed):
+    if not webhook:
+        return False
+    body = json.dumps({'embeds': [embed]}).encode('utf-8')
     _http_post(webhook, body, {'Content-Type': 'application/json'})
     return True
 
@@ -247,12 +262,10 @@ _send_q = queue.Queue()
 
 
 def _send_one(label, fn):
-    """Run one channel send with up to 3 retries; log per-channel result. Independent
-    of the other channel so a bad Telegram config never blocks Discord."""
     for attempt in range(3):
         try:
             if fn() is False:
-                return  # channel not configured -> silently skip
+                return
             return
         except Exception as e:
             _safe_log('%s send failed (try %d): %s' % (label, attempt + 1, e))
@@ -262,13 +275,19 @@ def _send_one(label, fn):
 
 def _worker():
     while True:
-        text = _send_q.get()
+        payload = _send_q.get()
         try:
             cfg = config
-            _send_one('telegram', lambda: send_telegram(
-                cfg.get('telegram_token', ''), cfg.get('telegram_chat_id', ''), text))
-            _send_one('discord', lambda: send_discord(
-                cfg.get('discord_webhook', ''), text))
+            tg_text, tg_html, dc_text, dc_embed = _render(payload)
+            _send_one('telegram', lambda: send_telegram_text(
+                cfg.get('telegram_token', ''), cfg.get('telegram_chat_id', ''),
+                tg_text, html=tg_html))
+            if dc_embed is not None:
+                _send_one('discord', lambda: send_discord_embed(
+                    cfg.get('discord_webhook', ''), dc_embed))
+            else:
+                _send_one('discord', lambda: send_discord_text(
+                    cfg.get('discord_webhook', ''), dc_text))
         finally:
             _send_q.task_done()
 
@@ -277,33 +296,53 @@ _worker_thread = threading.Thread(target=_worker, name='xNotify-sender', daemon=
 _worker_thread.start()
 
 
-def _enqueue(text):
-    _send_q.put(text)
-
-
-# ______________________________ notify() ______________________________ #
-
-_last_sent = {}
-_throttle_lock = threading.Lock()
+# ______________________________ Rich rendering ______________________________ #
 
 EMOJI = {
-    'death': '⚠️',
-    'bot_stopped': '🛑',
-    'attacked': '⚔️',
-    'trade_start': '📦',
-    'trade_settle': '✅',
-    'hp_pots_out': '🩸',
-    'mp_pots_out': '🔵',
-    'pm': '✉️',
-    'global': '📢',
-    'notice': '📜',
-    'unique': '👑',
+    'death': '⚠️', 'bot_stopped': '🛑', 'attacked': '⚔️',
+    'trade_start': '📦', 'trade_settle': '✅',
+    'hp_pots_out': '🩸', 'mp_pots_out': '🔵',
+    'pm': '✉️', 'global': '📢', 'notice': '📜', 'unique': '👑',
+    'level_up': '⬆️', 'rare_drop': '💎',
+    'party_chat': '🎉', 'guild_chat': '🛡️', 'union_chat': '🤝',
+    'academy_chat': '🎓', 'all_chat': '🗣️', 'stall_chat': '🏪',
+}
+
+# Discord embed colours (decimal RGB)
+COLOURS = {
+    'death': 0xE74C3C, 'bot_stopped': 0x95A5A6, 'attacked': 0xE67E22,
+    'trade_start': 0x3498DB, 'trade_settle': 0x2ECC71,
+    'hp_pots_out': 0xC0392B, 'mp_pots_out': 0x2980B9,
+    'pm': 0x9B59B6, 'global': 0xF1C40F, 'notice': 0xECEC4F,
+    'unique': 0xFFD700, 'level_up': 0x1ABC9C, 'rare_drop': 0x00CED1,
+    'party_chat': 0xE91E63, 'guild_chat': 0x7B68EE, 'union_chat': 0x4682B4,
+    'academy_chat': 0x9370DB, 'all_chat': 0xBDC3C7, 'stall_chat': 0xCD853F,
+}
+
+TITLES = {
+    'death': 'Character died',
+    'bot_stopped': 'Bot stopped',
+    'attacked': 'Attacked by player',
+    'trade_start': 'Trade route started',
+    'trade_settle': 'Trade settled',
+    'hp_pots_out': 'Out of HP potions',
+    'mp_pots_out': 'Out of MP potions',
+    'pm': 'Private message',
+    'global': 'Global chat',
+    'notice': 'Server notice',
+    'unique': 'Unique spawned',
+    'level_up': 'Level up',
+    'rare_drop': 'Rare item dropped',
+    'party_chat': 'Party chat',
+    'guild_chat': 'Guild chat',
+    'union_chat': 'Union chat',
+    'academy_chat': 'Academy chat',
+    'all_chat': 'All chat',
+    'stall_chat': 'Stall chat',
 }
 
 
 def _profile_game_name():
-    # Fallback game name from the loaded profile (e.g. vSRO.json) next to phBot.exe.
-    # CONFIRM live (verification): prefer get_character_data() server/region field.
     try:
         base = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         for fn in os.listdir(base):
@@ -321,15 +360,125 @@ def _identity():
         ch = {}
     name = ch.get('name') or '??'
     game = ch.get('server') or ch.get('region') or _profile_game_name() or '??'
-    return game, name
+    return game, name, ch
 
 
-def _format(event_type, text):
-    game, name = _identity()
-    # Shared/server-wide events aren't tied to one character, so omit the char name.
+def _position_str(ch):
+    try:
+        pos = get_position() or {}
+    except Exception:
+        pos = {}
+    x = pos.get('x') or ch.get('x')
+    y = pos.get('y') or ch.get('y')
+    region = pos.get('region') or ch.get('region_id')
+    if x is None or y is None:
+        return None
+    try:
+        if region is not None:
+            return '%d, %d (r%s)' % (int(x), int(y), region)
+        return '%d, %d' % (int(x), int(y))
+    except Exception:
+        return str(x) + ', ' + str(y)
+
+
+def _hp_str(ch):
+    hp = ch.get('hp'); mp = ch.get('mp')
+    hp_max = ch.get('max_hp') or ch.get('hp_max')
+    mp_max = ch.get('max_mp') or ch.get('mp_max')
+    parts = []
+    if hp is not None:
+        parts.append('HP %s%s' % (hp, ('/' + str(hp_max)) if hp_max else ''))
+    if mp is not None:
+        parts.append('MP %s%s' % (mp, ('/' + str(mp_max)) if mp_max else ''))
+    return ' · '.join(parts) if parts else None
+
+
+def _build_fields(event_type, ch, extras):
+    """Returns list of (name, value, inline) for embed fields."""
+    fields = []
+    game, name, _ = _identity()
+    if event_type not in SHARED_EVENTS:
+        fields.append(('Character', '%s' % name, True))
+    fields.append(('Server', game, True))
+    lvl = ch.get('level')
+    if lvl is not None:
+        fields.append(('Level', str(lvl), True))
+    hp = _hp_str(ch)
+    if hp:
+        fields.append(('Vitals', hp, True))
+    pos = _position_str(ch)
+    if pos:
+        fields.append(('Position', pos, True))
+    if extras:
+        for k, v in extras:
+            if v not in (None, ''):
+                fields.append((k, str(v), True))
+    return fields
+
+
+def _render(payload):
+    """Build channel-specific payloads.
+    payload = {type, text, extras (list of (k,v)), force}
+    Returns (telegram_text, telegram_is_html, discord_text, discord_embed_or_None)
+    """
+    event_type = payload['type']
+    text = payload.get('text') or ''
+    extras = payload.get('extras') or []
+    rich = config.get('rich_cards', True)
+
+    try:
+        ch = get_character_data() or {}
+    except Exception:
+        ch = {}
+    game, name, _ = _identity()
+    emoji = EMOJI.get(event_type, 'ℹ️')
+    title = TITLES.get(event_type, event_type.replace('_', ' ').title())
+
+    # Plain fallback (used if rich_cards is off)
     if event_type in SHARED_EVENTS:
-        return '%s [%s] %s' % (EMOJI.get(event_type, 'ℹ️'), game, text)
-    return '%s [%s • %s] %s' % (EMOJI.get(event_type, 'ℹ️'), game, name, text)
+        plain = '%s [%s] %s' % (emoji, game, text)
+    else:
+        plain = '%s [%s • %s] %s' % (emoji, game, name, text)
+
+    if not rich:
+        return plain, False, plain, None
+
+    fields = _build_fields(event_type, ch, extras)
+
+    # Telegram HTML card
+    def esc(s):
+        return (str(s).replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;'))
+
+    lines = ['<b>%s %s</b>' % (emoji, esc(title))]
+    if text:
+        lines.append(esc(text))
+    if fields:
+        lines.append('')
+        for k, v, _ in fields:
+            lines.append('<b>%s:</b> <code>%s</code>' % (esc(k), esc(v)))
+    tg_html = '\n'.join(lines)
+
+    # Discord embed
+    embed = {
+        'title': '%s %s' % (emoji, title),
+        'description': text[:2000] if text else None,
+        'color': COLOURS.get(event_type, 0x607D8B),
+        'fields': [{'name': k, 'value': str(v)[:1024], 'inline': inline}
+                   for (k, v, inline) in fields],
+        'footer': {'text': 'xNotify v%s' % pVersion},
+        'timestamp': time.strftime('%Y-%m-%dT%H:%M:%S+00:00', time.gmtime()),
+    }
+    # Strip None description (Discord rejects nulls in some validators)
+    if embed['description'] is None:
+        embed.pop('description', None)
+
+    return tg_html, True, plain, embed
+
+
+# ______________________________ notify() ______________________________ #
+
+_last_sent = {}
+_throttle_lock = threading.Lock()
 
 
 def _throttled(event_type):
@@ -343,30 +492,30 @@ def _throttled(event_type):
         return False
 
 
-def notify(event_type, text, force=False):
+def notify(event_type, text, force=False, extras=None):
     """Public API. Other plugins: import xNotify; xNotify.notify('trade_start', '...')
-    force=True bypasses the per-event cooldown (used for PMs). Server-wide events
-    (global/notice/unique) are deduped across all bots so only one copy is sent."""
+    force=True bypasses the per-event cooldown (used for PMs / uniques).
+    extras: optional list of (label, value) tuples added to the card."""
     if not config.get('events', {}).get(event_type, False):
         return
     if event_type in SHARED_EVENTS:
-        # Cross-process claim handles dedup AND throttling for shared events.
-        if not _claim_shared(event_type + '|' + text, SHARED_WINDOW.get(event_type, 30.0)):
+        key = event_type + '|' + (text or '')
+        if not _claim_shared(key, SHARED_WINDOW.get(event_type, 30.0)):
             return
     elif not force and _throttled(event_type):
         return
-    _enqueue(_format(event_type, text))
+    _send_q.put({'type': event_type, 'text': text or '', 'extras': extras or []})
 
 
 # ______________________________ Event detectors ______________________________ #
 
 _prev_hp = None
 _prev_botting = None
-ATTACK_OPCODE = 0xB070  # CONFIRM live: skill/attack action opcode
+_prev_level = None
+ATTACK_OPCODE = 0xB070
 
 
 def _is_botting():
-    # CONFIRM live: correct field/function for botting-running state.
     try:
         ch = get_character_data() or {}
     except Exception:
@@ -377,23 +526,13 @@ def _is_botting():
     return None
 
 
-def _my_object_id():
-    try:
-        ch = get_character_data() or {}
-    except Exception:
-        return None
-    return ch.get('uid') or ch.get('object_id') or ch.get('jid')
-
-
 _prev_hp_pots = None
 _prev_mp_pots = None
 _last_pot_check = 0
-POT_CHECK_INTERVAL = 5.0  # seconds between inventory scans (keep event_loop cheap)
+POT_CHECK_INTERVAL = 5.0
 
 
 def _potion_counts():
-    """Return (hp_qty, mp_qty) of recovery potions in inventory; (None, None) if
-    inventory is unavailable. Vigor potions (tid3==3) count toward both."""
     try:
         inv = get_inventory()
     except Exception:
@@ -412,7 +551,6 @@ def _potion_counts():
             d = get_item(it.get('model'))
         except Exception:
             d = None
-        # CONFIRM live: tid1=3/tid2=1 recovery, tid3 1=HP 2=MP 3=Vigor.
         if d and d.get('tid1') == 3 and d.get('tid2') == 1:
             t3 = d.get('tid3')
             if t3 == 1:
@@ -446,39 +584,116 @@ def _check_potions():
     hp, mp = _potion_counts()
     if hp is not None:
         if _prev_hp_pots is not None and _prev_hp_pots > 0 and hp == 0:
-            notify('hp_pots_out', 'Out of HP potions')
+            notify('hp_pots_out', 'Out of HP potions', extras=[('Before', _prev_hp_pots)])
         _prev_hp_pots = hp
     if mp is not None:
         if _prev_mp_pots is not None and _prev_mp_pots > 0 and mp == 0:
-            notify('mp_pots_out', 'Out of MP potions')
+            notify('mp_pots_out', 'Out of MP potions', extras=[('Before', _prev_mp_pots)])
         _prev_mp_pots = mp
 
 
-UNIQUE_MOB_TYPE = 8  # phBot mob 'type' rarity codes: 8 = Unique
 _seen_uniques = set()
 
 
+def _is_unique_mob(mob):
+    """Match xShadowDungeon's working heuristic: type/rarity codes 3/4/5 plus
+    name keywords. Old `type == 8` was wrong for vSRO/iSRO servers."""
+    if not mob:
+        return False
+    unique_types = set(config.get('unique_types') or [3, 4, 5])
+    t = mob.get('type')
+    r = mob.get('rarity')
+    if (t in unique_types) or (r in unique_types):
+        return True
+    name = str(mob.get('name') or mob.get('servername') or '').lower()
+    for kw in config.get('unique_keywords') or []:
+        if kw and kw.lower() in name:
+            return True
+    return False
+
+
 def _check_uniques():
-    """Alert on every unique monster (mob type 8) that appears in the bot's view,
-    once per spawn. Dedup by entity key so it doesn't repeat each tick; a later
-    respawn (new key) re-alerts."""
+    """Alert on every unique monster in view, once per spawn. Re-spawns (new
+    entity key) re-alert."""
     global _seen_uniques
     try:
         mons = get_monsters() or {}
     except Exception:
         return
     present = set()
-    for key, mob in mons.items():
-        if not mob or mob.get('type') != UNIQUE_MOB_TYPE:
+    try:
+        iterator = mons.items()
+    except Exception:
+        iterator = ((i, m) for i, m in enumerate(mons or []))
+    for key, mob in iterator:
+        if not _is_unique_mob(mob):
             continue
         present.add(key)
         if key not in _seen_uniques:
-            notify('unique', 'Unique spawned: ' + (mob.get('name') or '?'), force=True)
+            mname = mob.get('name') or mob.get('servername') or '?'
+            extras = [
+                ('Mob', mname),
+                ('HP', mob.get('hp')),
+                ('Type', mob.get('type')),
+                ('Rarity', mob.get('rarity')),
+            ]
+            try:
+                pos = get_position() or {}
+                if 'x' in mob and 'y' in mob and pos:
+                    dx = float(mob['x']) - float(pos.get('x', 0))
+                    dy = float(mob['y']) - float(pos.get('y', 0))
+                    extras.append(('Distance', '%dm' % int((dx * dx + dy * dy) ** 0.5)))
+            except Exception:
+                pass
+            notify('unique', 'Unique spawned: ' + mname, force=True, extras=extras)
     _seen_uniques = present
 
 
+_seen_drops = set()
+_last_drop_check = 0
+DROP_CHECK_INTERVAL = 3.0
+
+
+def _is_rare_drop(item_name):
+    name = (item_name or '').lower()
+    for kw in config.get('rare_drop_keywords') or []:
+        if kw and kw.lower() in name:
+            return True
+    return False
+
+
+def _check_drops():
+    global _seen_drops, _last_drop_check
+    now = time.monotonic()
+    if now - _last_drop_check < DROP_CHECK_INTERVAL:
+        return
+    _last_drop_check = now
+    try:
+        drops = get_drops() or {}
+    except Exception:
+        return
+    present = set()
+    try:
+        iterator = drops.items()
+    except Exception:
+        iterator = ((i, d) for i, d in enumerate(drops or []))
+    for key, drop in iterator:
+        if not drop:
+            continue
+        present.add(key)
+        if key in _seen_drops:
+            continue
+        nm = drop.get('name') or ''
+        if _is_rare_drop(nm):
+            notify('rare_drop', 'Dropped: ' + nm, extras=[
+                ('Item', nm),
+                ('Owner', drop.get('owner') or '—'),
+            ])
+    _seen_drops = present
+
+
 def event_loop():
-    global _prev_hp, _prev_botting
+    global _prev_hp, _prev_botting, _prev_level
     try:
         ch = get_character_data() or {}
     except Exception:
@@ -486,8 +701,14 @@ def event_loop():
     hp = ch.get('hp')
     if hp is not None:
         if _prev_hp is not None and _prev_hp > 0 and hp == 0:
-            notify('death', 'Died')
+            notify('death', 'Character died', extras=[('Last HP', _prev_hp)])
         _prev_hp = hp
+    lvl = ch.get('level')
+    if lvl is not None:
+        if _prev_level is not None and lvl > _prev_level:
+            notify('level_up', 'Reached level %s' % lvl,
+                   extras=[('Previous', _prev_level), ('New', lvl)])
+        _prev_level = lvl
     b = _is_botting()
     if b is not None:
         if _prev_botting is True and b is False:
@@ -495,14 +716,12 @@ def event_loop():
         _prev_botting = b
     _check_potions()
     _check_uniques()
+    _check_drops()
 
 
 def handle_joymax(opcode, data):
     if opcode != ATTACK_OPCODE:
         return
-    # CONFIRM live: parse source/target object ids from `data`. When target ==
-    # _my_object_id() and source resolves to a player, fire:
-    #   notify('attacked', 'Attacked by ' + attacker_name)
     return
 
 
@@ -514,18 +733,44 @@ def _is_unique_text(msg):
     return False
 
 
+# Map known SRO chat type codes to xNotify event keys.
+# 1=All, 2=PM, 3=Party, 4=Guild, 5=Global, 6=Notice (server-dependent on 5/6),
+# 7=Stall, 9=Union, 11=Academy. Many servers swap 5/6 — treat both as "broad".
+CHAT_TYPE_MAP = {
+    1: ('all_chat', False),
+    2: ('pm', True),       # force=True bypasses cooldown for PMs
+    3: ('party_chat', False),
+    4: ('guild_chat', False),
+    5: ('global', False),
+    6: ('global', False),
+    7: ('stall_chat', False),
+    9: ('union_chat', False),
+    11: ('academy_chat', False),
+}
+
+
 def handle_chat(t, player, msg):
-    # 2 = PM, 6 = Global, 7 = Notice
-    if t == 2:
-        notify('pm', 'PM from %s: %s' % (player or '?', msg), force=True)
-    elif t in (6, 7):
-        if _is_unique_text(msg):
-            notify('unique', msg)
-            return
-        if t == 6:
-            notify('global', '%s: %s' % (player or '?', msg))
-        else:
-            notify('notice', msg)
+    # Server notices/system messages typically arrive as t==7 on some servers and
+    # t==6 on others. We treat any "broad" chat (5/6) as global, surface a unique
+    # alert if it contains a known keyword, and route the rest by type.
+    text = msg or ''
+    if t in (5, 6) and _is_unique_text(text):
+        notify('unique', text, extras=[('Source', 'chat')])
+        return
+
+    mapping = CHAT_TYPE_MAP.get(t)
+    if mapping is None:
+        # Unknown chat type — surface as a notice so nothing is silently dropped.
+        notify('notice', '[type %s] %s' % (t, text),
+               extras=[('From', player or '—'), ('Chat type', t)])
+        return
+
+    event_key, force = mapping
+    sender = player or '—'
+    if event_key == 'pm':
+        notify('pm', text, force=force, extras=[('From', sender)])
+    else:
+        notify(event_key, text, force=force, extras=[('From', sender)])
 
 
 # ______________________________ GUI ______________________________ #
@@ -542,10 +787,13 @@ txtHook = QtBind.createLineEdit(gui, _mask_secret(config['discord_webhook']), 12
 QtBind.createLabel(gui, 'Cooldown (s):', 6, 114)
 txtCd = QtBind.createLineEdit(gui, str(config['cooldown_sec']), 120, 110, 60, 20)
 
+chkRich = QtBind.createCheckBox(gui, '', 'Rich card layout (Discord embed / Telegram HTML)', 200, 112)
+QtBind.setChecked(gui, chkRich, bool(config.get('rich_cards', True)))
+
 QtBind.createLabel(gui, 'Events:', 6, 140)
 _event_checks = {}
 _COLS = 4
-_COL_W = 110
+_COL_W = 130
 _ROW_H = 24
 _X0 = 60
 _Y0 = 138
@@ -560,8 +808,7 @@ _rows = (len(EVENT_LABELS) + _COLS - 1) // _COLS
 _btn_y = _Y0 + _rows * _ROW_H + 6
 btnSave = QtBind.createButton(gui, 'btnSave_clicked', '  Save  ', 6, _btn_y)
 btnTest = QtBind.createButton(gui, 'btnTest_clicked', '  Send Test  ', 80, _btn_y)
-# Labels auto-size to their initial text, so pad with trailing spaces to reserve
-# width for longer status messages set later (matches xCaravan's _STAT_PAD idiom).
+btnTestUnique = QtBind.createButton(gui, 'btnTestUnique_clicked', '  Test Unique  ', 180, _btn_y)
 _STATUS_PAD = ' ' * 48
 
 
@@ -582,10 +829,10 @@ def btnSave_clicked():
         config['cooldown_sec'] = int(QtBind.text(gui, txtCd))
     except Exception:
         pass
+    config['rich_cards'] = bool(QtBind.isChecked(gui, chkRich))
     for _key, chk in _event_checks.items():
         config['events'][_key] = bool(QtBind.isChecked(gui, chk))
     save_config(config)
-    # Re-mask the fields so the plaintext secrets aren't left on screen.
     QtBind.setText(gui, txtToken, _mask_secret(config['telegram_token']))
     QtBind.setText(gui, txtChat, _mask_secret(config['telegram_chat_id']))
     QtBind.setText(gui, txtHook, _mask_secret(config['discord_webhook']))
@@ -594,8 +841,16 @@ def btnSave_clicked():
 
 
 def btnTest_clicked():
-    _enqueue(_format('death', 'xNotify test message'))
+    _send_q.put({'type': 'death', 'text': 'xNotify test message',
+                 'extras': [('Note', 'Manual test from GUI')]})
     _set_status('test queued')
+
+
+def btnTestUnique_clicked():
+    _send_q.put({'type': 'unique', 'text': 'Unique spawned: Tiger Girl (test)',
+                 'extras': [('Mob', 'Tiger Girl'), ('HP', '120000'),
+                            ('Type', 4), ('Rarity', 4), ('Distance', '37m')]})
+    _set_status('unique test queued')
 
 
 _safe_log('xNotify %s loaded' % pVersion)
