@@ -9,7 +9,7 @@ import time
 import webbrowser
 
 pName = 'xSpeedSpear'
-pVersion = '3.1.0'
+pVersion = '4.1.0'
 pAuthor = 'Vette1123 (Gado)'
 pUrl = ''
 
@@ -20,28 +20,21 @@ GITHUB_BTN_STYLE = (
     'QPushButton:hover{background:#ffe27a;}'
 )
 
-def btn_github_clicked(*_):
-    try:
-        webbrowser.open(GITHUB_URL)
-    except Exception:
-        pass
-
-def _try_style_github(btn):
-    for fn_name in ('setStyleSheet', 'setStylesheet', 'setStyle'):
-        fn = getattr(QtBind, fn_name, None)
-        if callable(fn):
-            try:
-                fn(gui, btn, GITHUB_BTN_STYLE)
-                return
-            except Exception:
-                pass
-
 # ============================================================
-# Speed-bug helper. Sends quickbar keystrokes to the Silkroad
-# client window. Hardcoded to your spear setup:
-#   speed = F2 page, slot 1
-#   imbue = F2 page, slot 2
-# Override via xSpeedSpear.json if needed.
+# Speed-bug helper, performance-tuned edition.
+#
+# Quickbar page + slot layout (same UX as v3.x). What changed:
+#   * NO keybd_event. Ever. v3 leaked OS-global keystrokes when
+#     the game had foreground focus, which jammed phBot's UI and
+#     killed system perf.
+#   * PostMessage WM_KEYDOWN/WM_KEYUP to the TOP-LEVEL game hwnd
+#     only. No child-window enumeration.
+#   * Tick rate reduced to 4 Hz (more than enough for 1s speed cd).
+#   * Autosave debounced — UI pull happens at most every 2s.
+#   * hwnd lookup cached for 5s.
+#
+# phBot casts its attack skills via internal packets, NOT the
+# quickbar, so the page switch is harmless to the bot.
 # ============================================================
 
 CFG_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'xSpeedSpear.json')
@@ -57,7 +50,6 @@ DEFAULT_CONFIG = {
     'imbue_slot': '2',    # slot number on that page for imbue
     'window_match': '',          # blank = auto from character name
     'window_class': 'SRClient',
-    'background_focus': True,    # focus-borrow when game is in background
 }
 cfg = json.loads(json.dumps(DEFAULT_CONFIG))
 
@@ -69,7 +61,8 @@ def load_config():
                 loaded = json.load(f)
             merged = json.loads(json.dumps(DEFAULT_CONFIG))
             for k, v in loaded.items():
-                merged[k] = v
+                if k in merged:
+                    merged[k] = v
             cfg = merged
     except Exception as e:
         log('[xSpeedSpear] load_config: %s' % e)
@@ -84,7 +77,7 @@ def save_config():
 load_config()
 
 # ============================================================
-# Win32 helpers
+# Win32 — PostMessage only, top-level hwnd only.
 # ============================================================
 user32 = ctypes.windll.user32
 user32.PostMessageW.argtypes = [wintypes.HWND, wintypes.UINT, wintypes.WPARAM, wintypes.LPARAM]
@@ -104,10 +97,6 @@ WM_KEYUP   = 0x0101
 EnumWindowsProc = ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
 user32.EnumWindows.argtypes = [EnumWindowsProc, wintypes.LPARAM]
 user32.EnumWindows.restype  = wintypes.BOOL
-
-EnumChildProc = ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
-user32.EnumChildWindows.argtypes = [wintypes.HWND, EnumChildProc, wintypes.LPARAM]
-user32.EnumChildWindows.restype  = wintypes.BOOL
 
 def _window_title(hwnd):
     buf = ctypes.create_unicode_buffer(512)
@@ -152,103 +141,68 @@ _VK_NAMED = {
     'SPACE': 0x20, 'TAB': 0x09, 'ENTER': 0x0D,
     'F1': 0x70, 'F2': 0x71, 'F3': 0x72, 'F4': 0x73,
     'F5': 0x74, 'F6': 0x75, 'F7': 0x76, 'F8': 0x77,
+    'F9': 0x78, 'F10': 0x79, 'F11': 0x7A, 'F12': 0x7B,
 }
 
 def parse_vk(s):
-    if not s: return None
+    if not s:
+        return None
     s = s.strip().upper()
-    if s in _VK_NAMED: return _VK_NAMED[s]
+    if s in _VK_NAMED:
+        return _VK_NAMED[s]
     if s.startswith('F') and s[1:].isdigit():
         n = int(s[1:])
-        if 1 <= n <= 24: return 0x6F + n
+        if 1 <= n <= 24:
+            return 0x6F + n
     if len(s) == 1 and (s.isdigit() or ('A' <= s <= 'Z')):
         return ord(s)
     return None
 
+# Pre-compute lparam values per VK since MapVirtualKeyW is called every cast
+_lp_cache_down = {}
+_lp_cache_up   = {}
+
 def _lp(vk, key_up):
+    cache = _lp_cache_up if key_up else _lp_cache_down
+    cached = cache.get(vk)
+    if cached is not None:
+        return cached
     scan = user32.MapVirtualKeyW(vk, 0) & 0xFF
     lp = 1
     lp |= (scan & 0xFF) << 16
     if key_up:
         lp |= (1 << 30); lp |= (1 << 31)
+    cache[vk] = lp
     return lp
 
-_child_cache = {}
-
-def _input_targets(hwnd):
-    now = time.time()
-    cached = _child_cache.get(hwnd)
-    if cached and now - cached[0] < 30.0:
-        return cached[1]
-    kids = []
-    def cb(h, _lp):
-        kids.append(h); return True
-    user32.EnumChildWindows(hwnd, EnumChildProc(cb), 0)
-    targets = [hwnd] + kids
-    _child_cache[hwnd] = (now, targets)
-    return targets
-
-# --- keybd_event path (works only when game window has foreground focus) ---
-user32.keybd_event.argtypes = [ctypes.c_ubyte, ctypes.c_ubyte, ctypes.c_uint, ctypes.c_void_p]
-user32.keybd_event.restype  = None
-user32.SetForegroundWindow.argtypes = [wintypes.HWND]
-user32.SetForegroundWindow.restype  = wintypes.BOOL
-user32.GetForegroundWindow.argtypes = []
-user32.GetForegroundWindow.restype  = wintypes.HWND
-user32.AttachThreadInput.argtypes = [wintypes.DWORD, wintypes.DWORD, wintypes.BOOL]
-user32.AttachThreadInput.restype  = wintypes.BOOL
-user32.GetWindowThreadProcessId.argtypes = [wintypes.HWND, ctypes.POINTER(wintypes.DWORD)]
-user32.GetWindowThreadProcessId.restype  = wintypes.DWORD
-kernel32 = ctypes.windll.kernel32
-kernel32.GetCurrentThreadId.restype = wintypes.DWORD
-
-KEYEVENTF_KEYUP       = 0x0002
-KEYEVENTF_SCANCODE    = 0x0008
-KEYEVENTF_EXTENDEDKEY = 0x0001
-
-def _send_via_keybd(vk):
-    scan = user32.MapVirtualKeyW(vk, 0) & 0xFF
-    user32.keybd_event(vk, scan, 0, 0)
-    user32.keybd_event(vk, scan, KEYEVENTF_KEYUP, 0)
-
-def _post_key_to(hwnd, vk):
-    """PostMessage to top-level + every child. Works when window is
-    foreground; sometimes works in background depending on the game."""
-    for h in _input_targets(hwnd):
-        try:
-            user32.PostMessageW(h, WM_KEYDOWN, vk, _lp(vk, False))
-            user32.PostMessageW(h, WM_KEYUP,   vk, _lp(vk, True))
-        except Exception:
-            pass
-
-def _post_key(hwnd, vk):
-    """Always post to the game window hierarchy (silent, background-safe).
-    Additionally, if the game already has foreground focus, also send a
-    real keybd_event keystroke — that's what DirectInput games actually
-    listen to. We never steal focus."""
-    _post_key_to(hwnd, vk)
+def _press(hwnd, vk):
+    """Single keydown+keyup, posted to top-level hwnd only.
+    PostMessage is queued FIFO on the target thread, so a page-key
+    press followed immediately by a slot-key press is processed
+    in order by the game's message pump."""
     try:
-        if user32.GetForegroundWindow() == hwnd:
-            _send_via_keybd(vk)
-    except Exception:
-        pass
-
-def cast_slot(hwnd, slot_key):
-    """Switch to the configured quickbar page, then press the slot key."""
-    if not hwnd: return False
-    page_vk = parse_vk(cfg.get('page_key', 'F2'))
-    slot_vk = parse_vk(slot_key)
-    if not page_vk or not slot_vk: return False
-    try:
-        _post_key(hwnd, page_vk)   # ensure F2 page is active
-        _post_key(hwnd, slot_vk)   # press slot digit
+        user32.PostMessageW(hwnd, WM_KEYDOWN, vk, _lp(vk, False))
+        user32.PostMessageW(hwnd, WM_KEYUP,   vk, _lp(vk, True))
         return True
     except Exception as e:
-        log('[xSpeedSpear] cast_slot failed: %s' % e)
+        log('[xSpeedSpear] _press: %s' % e)
         return False
 
+def cast_slot(hwnd, slot_key):
+    """Switch to the configured page, then press the slot key.
+    Both presses go to the same window's input queue in order."""
+    if not hwnd:
+        return False
+    page_vk = parse_vk(cfg.get('page_key', 'F2'))
+    slot_vk = parse_vk(slot_key)
+    if not page_vk or not slot_vk:
+        return False
+    if not _press(hwnd, page_vk):
+        return False
+    return _press(hwnd, slot_vk)
+
 # ============================================================
-# Runtime state
+# Runtime
 # ============================================================
 last_speed_at = 0.0
 last_imbue_at = 0.0
@@ -258,6 +212,10 @@ _last_debug_at = 0.0
 _cached_hwnd = None
 _cached_hwnd_at = 0.0
 _last_saved_snapshot = None
+_last_autosave_at = 0.0
+
+TICK_HZ = 4
+AUTOSAVE_EVERY_S = 2.0
 
 def _hwnd():
     global _cached_hwnd, _cached_hwnd_at
@@ -269,15 +227,20 @@ def _hwnd():
     return _cached_hwnd
 
 def _in_game():
-    try:    return bool(get_character_data())
-    except: return False
+    try:
+        return bool(get_character_data())
+    except Exception:
+        return False
 
 def _can_speed(now): return (now - last_speed_at) * 1000.0 >= cfg.get('speed_cooldown_ms', 1000)
 def _can_imbue(now): return (now - last_imbue_at) * 1000.0 >= cfg.get('imbue_cooldown_ms', 20000)
 
 def _autosave_if_changed():
-    """Snapshot the UI into cfg and save to JSON if anything changed."""
-    global _last_saved_snapshot
+    global _last_saved_snapshot, _last_autosave_at
+    now = time.time()
+    if now - _last_autosave_at < AUTOSAVE_EVERY_S:
+        return
+    _last_autosave_at = now
     try:
         _pull_ui_into_cfg()
     except Exception:
@@ -290,7 +253,7 @@ def _autosave_if_changed():
 def event_loop():
     global last_speed_at, last_imbue_at, _last_tick_at, _last_debug_at
     now = time.time()
-    if now - _last_tick_at < 0.1:
+    if now - _last_tick_at < (1.0 / TICK_HZ):
         return True
     _last_tick_at = now
     _autosave_if_changed()
@@ -312,18 +275,17 @@ def event_loop():
     return True
 
 # ============================================================
-# GUI — minimal
+# GUI
 # ============================================================
 gui = QtBind.init(__name__, pName)
 _PAD = ' ' * 80
 
 QtBind.createLabel(gui, 'Speed-bug helper. Defaults: speed = F2/slot 1,  imbue = F2/slot 2.', 12, 8)
-QtBind.createLabel(gui, 'Make sure those skillbar slots are bound in the game client.', 12, 26)
+QtBind.createLabel(gui, 'PostMessage-only, top-level hwnd only. Safe to leave running.', 12, 26)
 
 cb_enabled = QtBind.createCheckBox(gui, 'cb_enabled_clicked', 'Active', 12, 52)
 if cfg.get('enabled'):
     QtBind.setChecked(gui, cb_enabled, True)
-
 cb_speed = QtBind.createCheckBox(gui, 'cb_speed_clicked', 'Speed', 110, 52)
 if cfg.get('speed_enabled', True):
     QtBind.setChecked(gui, cb_speed, True)
@@ -348,16 +310,26 @@ btn_save     = QtBind.createButton(gui, 'btn_save_clicked',     '      Save     
 btn_test_spd = QtBind.createButton(gui, 'btn_test_spd_clicked', '   Test SPEED   ', 120, 150)
 btn_test_imb = QtBind.createButton(gui, 'btn_test_imb_clicked', '   Test IMBUE   ', 240, 150)
 btn_findwin  = QtBind.createButton(gui, 'btn_findwin_clicked',  '   Find window   ',360, 150)
-btn_github   = QtBind.createButton(gui, 'btn_github_clicked',   '  ⭐  Gado  ⭐  ',   490, 150)
+btn_github   = QtBind.createButton(gui, 'btn_github_clicked',   '  Gado  ',          490, 150)
+
+def _try_style_github(btn):
+    for fn_name in ('setStyleSheet', 'setStylesheet', 'setStyle'):
+        fn = getattr(QtBind, fn_name, None)
+        if callable(fn):
+            try:
+                fn(gui, btn, GITHUB_BTN_STYLE)
+                return
+            except Exception:
+                pass
 _try_style_github(btn_github)
 
 lbl_state = QtBind.createLabel(gui, '-' + _PAD, 12, 186)
 lbl_hwnd  = QtBind.createLabel(gui, 'window: -' + _PAD, 12, 206)
 
 def _pull_ui_into_cfg():
-    cfg['enabled'] = bool(QtBind.isChecked(gui, cb_enabled))
-    cfg['speed_enabled'] = bool(QtBind.isChecked(gui, cb_speed))
-    cfg['imbue_enabled'] = bool(QtBind.isChecked(gui, cb_imbue))
+    cfg['enabled']        = bool(QtBind.isChecked(gui, cb_enabled))
+    cfg['speed_enabled']  = bool(QtBind.isChecked(gui, cb_speed))
+    cfg['imbue_enabled']  = bool(QtBind.isChecked(gui, cb_imbue))
     try: cfg['speed_cooldown_ms'] = int(QtBind.text(gui, tb_speedcd))
     except: pass
     try: cfg['imbue_cooldown_ms'] = int(QtBind.text(gui, tb_imbuecd))
@@ -379,16 +351,13 @@ def _pull_ui_into_cfg():
     except: pass
 
 def cb_enabled_clicked(*_):
-    cfg['enabled'] = bool(QtBind.isChecked(gui, cb_enabled))
-    _refresh_status()
+    cfg['enabled'] = bool(QtBind.isChecked(gui, cb_enabled)); _refresh_status()
 
 def cb_speed_clicked(*_):
-    cfg['speed_enabled'] = bool(QtBind.isChecked(gui, cb_speed))
-    _refresh_status()
+    cfg['speed_enabled'] = bool(QtBind.isChecked(gui, cb_speed)); _refresh_status()
 
 def cb_imbue_clicked(*_):
-    cfg['imbue_enabled'] = bool(QtBind.isChecked(gui, cb_imbue))
-    _refresh_status()
+    cfg['imbue_enabled'] = bool(QtBind.isChecked(gui, cb_imbue)); _refresh_status()
 
 def btn_save_clicked(*_):
     _pull_ui_into_cfg()
@@ -399,14 +368,14 @@ def btn_save_clicked(*_):
 def btn_test_spd_clicked(*_):
     _pull_ui_into_cfg()
     hwnd = _hwnd()
-    ok = cast_slot(hwnd, cfg.get('speed_slot', '1'))
+    ok = cast_slot(hwnd, cfg.get('speed_slot', '1')) if hwnd else False
     log('[xSpeedSpear] TEST speed — hwnd=%s page=%s slot=%s ok=%s' % (
         hwnd, cfg['page_key'], cfg['speed_slot'], ok))
 
 def btn_test_imb_clicked(*_):
     _pull_ui_into_cfg()
     hwnd = _hwnd()
-    ok = cast_slot(hwnd, cfg.get('imbue_slot', '2'))
+    ok = cast_slot(hwnd, cfg.get('imbue_slot', '2')) if hwnd else False
     log('[xSpeedSpear] TEST imbue — hwnd=%s page=%s slot=%s ok=%s' % (
         hwnd, cfg['page_key'], cfg['imbue_slot'], ok))
 
@@ -419,6 +388,10 @@ def btn_findwin_clicked(*_):
     else:
         log('[xSpeedSpear] window NOT found  (match=%r class=%r)' % (_resolve_match(), cfg.get('window_class')))
     _refresh_status()
+
+def btn_github_clicked(*_):
+    try: webbrowser.open(GITHUB_URL)
+    except Exception: pass
 
 def _refresh_status():
     try:
@@ -438,7 +411,6 @@ def _refresh_status():
     except Exception:
         pass
 
-# Baseline snapshot so we don't write the JSON on the very first tick.
 try:
     _pull_ui_into_cfg()
     _last_saved_snapshot = json.dumps(cfg, sort_keys=True)
@@ -446,3 +418,4 @@ except Exception:
     pass
 
 _refresh_status()
+log('Plugin: %s v%s loaded' % (pName, pVersion))

@@ -14,7 +14,7 @@ Personal collection of [phBot](https://www.elitepvpers.com/forum/sro-pserver-bot
 | [`xPacketTool.py`](./xPacketTool.py) | Packet inspector / injector. Send raw client or server packets, with a filter list to log only the opcodes you care about. |
 | [`xNotify.py`](./xNotify.py) | Push live status alerts to **Telegram** and/or **Discord** — death, bot stopped, attacked, out of HP/MP potions, PMs, global/notice chat, unique sightings, and xCaravan trade start/settle. Per-event toggles, throttling, and a shared config read by every bot process. Each alert is labelled `[game • character]` so you know which bot fired it. |
 | [`xShadowDungeon.py`](./xShadowDungeon.py) | Shadow Dungeon helper. Automates the shadow / job dungeon entry, NPC opens, item retrieval, and exit packet flow so the run completes hands-free. |
-| [`xSpeedSpear.py`](./xSpeedSpear.py) | Chinese spear imbue/speed animation-cancel helper. Presses your quickbar speed (1s cd) and imbue (20s cd) on a timer via Win32 PostMessage + keybd_event, working around phBot's block on injected `0x7074` skill casts. Configurable quickbar page (F1–F4) and slot positions (1–0). |
+| [`xSpeedSpear.py`](./xSpeedSpear.py) | Chinese spear imbue/speed animation-cancel helper. Presses your quickbar speed (1s cd) and imbue (20s cd) on a timer via Win32 `PostMessage` to the top-level game window only — no `keybd_event`, no child enumeration, no foreground stealing. 4 Hz tick, debounced autosave, cached lparam/hwnd. Configurable quickbar page (F1–F4) and slot positions (1–0). |
 
 ---
 
