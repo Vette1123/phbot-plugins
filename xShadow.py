@@ -4,7 +4,7 @@ import QtBind
 import time
 import threading
 
-pName = 'Shadow Doungeon - Garnet'
+pName = 'xShadow'
 pVersion = '2.5.1_LOG_CLEAN'
 pUrl = 'https://github.com/'
 
@@ -1275,7 +1275,6 @@ QtBind.createButton(gui, 'btn_begin_manual', 'Begin', 120, 245)
 QtBind.createButton(gui, 'btn_summon_manual', 'Summon Once', 220, 245)
 QtBind.createButton(gui, 'btn_exit_manual', 'Exit', 320, 245)
 QtBind.createButton(gui, 'btn_storage_first_manual', 'Store Queue', 420, 245)
-lblSignature = QtBind.createLabel(gui, '<b><font color="red">Regards | Shaaban - Garnet</font></b>', 20, 275)
 
 
 def auto_refresh_inventory_on_load():
