@@ -225,6 +225,8 @@ def btnCopy_clicked():
 	src = QtBind.text(gui, cmbSource).strip()
 	dst = _resolve_destination(src)
 	d = _config_dir()
+	existing_chars = list_characters()
+	is_new_char = bool(dst) and dst not in existing_chars
 
 	if not src:
 		_set_status('pick a source character.')
@@ -311,9 +313,11 @@ def btnCopy_clicked():
 	else:
 		_set_status('done with ' + str(errors) + ' error(s). ' + str(copied) + ' copied. see log.')
 
-	# clear new-name field and refresh dropdowns so newly created char shows up
+	# clear new-name field; only refresh dropdowns when a brand-new char was
+	# created, so existing source/destination selections aren't disturbed.
 	QtBind.setText(gui, txtNewDest, '')
-	_populate_combos(preserve=True)
+	if is_new_char:
+		_populate_combos(preserve=True)
 
 # Initial population
 _populate_combos(preserve=False)
