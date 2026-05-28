@@ -48,6 +48,8 @@ CFG_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'xSpeedSpear
 
 DEFAULT_CONFIG = {
     'enabled': True,
+    'speed_enabled': True,
+    'imbue_enabled': True,
     'speed_cooldown_ms': 1000,
     'imbue_cooldown_ms': 20000,
     'page_key':   'F2',   # quickbar page where speed + imbue live
@@ -300,10 +302,10 @@ def event_loop():
             _last_debug_at = now
             log('[xSpeedSpear] tick — window not found (match=%r)' % _resolve_match())
         return True
-    if _can_speed(now) and cast_slot(hwnd, cfg.get('speed_slot', '1')):
+    if cfg.get('speed_enabled', True) and _can_speed(now) and cast_slot(hwnd, cfg.get('speed_slot', '1')):
         last_speed_at = now
         stats['speeds'] += 1
-    if _can_imbue(now) and cast_slot(hwnd, cfg.get('imbue_slot', '2')):
+    if cfg.get('imbue_enabled', True) and _can_imbue(now) and cast_slot(hwnd, cfg.get('imbue_slot', '2')):
         last_imbue_at = now
         stats['imbues'] += 1
     _refresh_status()
@@ -321,6 +323,13 @@ QtBind.createLabel(gui, 'Make sure those skillbar slots are bound in the game cl
 cb_enabled = QtBind.createCheckBox(gui, 'cb_enabled_clicked', 'Active', 12, 52)
 if cfg.get('enabled'):
     QtBind.setChecked(gui, cb_enabled, True)
+
+cb_speed = QtBind.createCheckBox(gui, 'cb_speed_clicked', 'Speed', 110, 52)
+if cfg.get('speed_enabled', True):
+    QtBind.setChecked(gui, cb_speed, True)
+cb_imbue = QtBind.createCheckBox(gui, 'cb_imbue_clicked', 'Imbue', 190, 52)
+if cfg.get('imbue_enabled', True):
+    QtBind.setChecked(gui, cb_imbue, True)
 
 QtBind.createLabel(gui, 'Speed cd (ms):', 12, 84)
 tb_speedcd = QtBind.createLineEdit(gui, str(cfg['speed_cooldown_ms']), 110, 82, 60, 22)
@@ -347,6 +356,8 @@ lbl_hwnd  = QtBind.createLabel(gui, 'window: -' + _PAD, 12, 206)
 
 def _pull_ui_into_cfg():
     cfg['enabled'] = bool(QtBind.isChecked(gui, cb_enabled))
+    cfg['speed_enabled'] = bool(QtBind.isChecked(gui, cb_speed))
+    cfg['imbue_enabled'] = bool(QtBind.isChecked(gui, cb_imbue))
     try: cfg['speed_cooldown_ms'] = int(QtBind.text(gui, tb_speedcd))
     except: pass
     try: cfg['imbue_cooldown_ms'] = int(QtBind.text(gui, tb_imbuecd))
@@ -369,6 +380,14 @@ def _pull_ui_into_cfg():
 
 def cb_enabled_clicked(*_):
     cfg['enabled'] = bool(QtBind.isChecked(gui, cb_enabled))
+    _refresh_status()
+
+def cb_speed_clicked(*_):
+    cfg['speed_enabled'] = bool(QtBind.isChecked(gui, cb_speed))
+    _refresh_status()
+
+def cb_imbue_clicked(*_):
+    cfg['imbue_enabled'] = bool(QtBind.isChecked(gui, cb_imbue))
     _refresh_status()
 
 def btn_save_clicked(*_):
