@@ -106,7 +106,7 @@ gui = QtBind.init(__name__, pName)
 
 # ---------- Header ----------
 QtBind.createLabel(gui, 'xAutoConfig  -  Copy Settings Between Characters', 12, 8)
-QtBind.createLabel(gui, 'Clone .json settings and/or .db3 item filter from one character to another.', 12, 26)
+QtBind.createLabel(gui, 'Clones .json settings and the full .db3 item filter (incl. -wal/-shm sidecars) between characters.', 12, 26)
 
 # ---------- LEFT column: source / destination ----------
 QtBind.createLabel(gui, 'Source:', 12, 58)
@@ -125,7 +125,7 @@ btnRefresh = QtBind.createButton(gui, 'btnRefresh_clicked', '   Refresh   ', 170
 QtBind.createLabel(gui, 'What to copy:', 360, 58)
 
 cbJson  = QtBind.createCheckBox(gui, 'noop', 'Main settings  (.json)',                              360, 80)
-cbDb3   = QtBind.createCheckBox(gui, 'noop', 'Item filter database  (.db3)',                        360, 100)
+cbDb3   = QtBind.createCheckBox(gui, 'noop', 'Item filter database  (.db3 + -wal/-shm)',           360, 100)
 cbExtra = QtBind.createCheckBox(gui, 'noop', 'Extra .json profiles  (uniques, named filters, ...)', 360, 120)
 
 QtBind.setChecked(gui, cbJson, True)
@@ -263,17 +263,26 @@ def btnCopy_clicked():
 			log('Plugin: source main .json missing: ' + s)
 			errors += 1
 
-	# .db3 (+ clear sidecars on destination to avoid sqlite WAL mismatch)
+	# .db3 + WAL sidecars. phBot's filter DB runs in sqlite WAL mode, so the most
+	# recent edits may live in source.db3-wal rather than the main file. We copy
+	# all three so the destination opens with the same state. Any dest sidecar
+	# that doesn't exist on source is removed to avoid a stale WAL replay.
 	if do_db3:
 		s = d + src + '.db3'
 		t = d + dst + '.db3'
 		if os.path.exists(s):
 			try:
-				for suf in DB3_SIDECARS:
-					_remove_if_exists(t + suf)
 				_safe_copy(s, t)
 				log('Plugin: copied ' + src + '.db3  ->  ' + dst + '.db3')
 				copied += 1
+				for suf in DB3_SIDECARS:
+					ss = s + suf
+					tt = t + suf
+					if os.path.exists(ss):
+						_safe_copy(ss, tt)
+						log('Plugin: copied ' + src + '.db3' + suf + '  ->  ' + dst + '.db3' + suf)
+					else:
+						_remove_if_exists(tt)
 			except Exception as ex:
 				log('Plugin: failed copying .db3 - ' + str(ex))
 				errors += 1
