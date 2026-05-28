@@ -16,7 +16,7 @@ import webbrowser
 import hashlib
 
 pName = 'xNotify'
-pVersion = '1.4.0'
+pVersion = '1.4.1'
 pAuthor = 'Vette1123 (Gado)'
 pUrl = 'https://raw.githubusercontent.com/Vette1123/phbot-plugins/main/xNotify.py'
 
@@ -95,8 +95,19 @@ DEFAULT_CONFIG = {
     },
     # name substrings (lowercase) flagging a global/notice as a unique sighting
     'unique_keywords': ['unique', 'legend', 'legendary', 'boss', 'titan', 'demon lord'],
-    # mob 'type' / 'rarity' codes treated as uniques (phBot exposes both fields)
-    'unique_types': [3, 4, 5],
+    # mob 'rarity' codes treated as uniques. In phBot/SRO, 3=Giant, 4=Champion-party,
+    # 5=Elite, 6=Unique. Only 6 is a real Unique — the others are common field spawns
+    # and were the source of false-positive "unique" alerts.
+    'unique_types': [6],
+    # Known SRO unique monster names (lowercase substrings). These spawn without the
+    # word "unique" in their name, so we match them explicitly.
+    'unique_names': [
+        'tiger girl', 'uruchi', 'isyutaru', 'lord yarkan', 'cerberus',
+        'captain ivy', 'medusa', 'roc', 'demon shaitan', 'selket',
+        'anubis', 'isis', 'seth', 'neith', 'horus', 'apis',
+        'kidemonas', 'kerveros', 'ymir', 'hekaton', 'olympos',
+        'beelzebub', 'lucifer', 'belial', 'baal',
+    ],
     # Substrings that mark an item as "rare" enough to alert on (lowercase)
     'rare_drop_keywords': ['sun ', 'moon ', 'star ', 'seal of', 'devil', 'd13', 'd14', 'd15', 'd16'],
 }
@@ -596,18 +607,24 @@ _seen_uniques = set()
 
 
 def _is_unique_mob(mob):
-    """Match xShadowDungeon's working heuristic: type/rarity codes 3/4/5 plus
-    name keywords. Old `type == 8` was wrong for vSRO/iSRO servers."""
+    """Detect a real Unique. phBot mob 'rarity' codes: 0=general, 1=champion,
+    3=giant, 4=party-champion, 5=elite, 6=unique. Only 6 is a true Unique —
+    matching 3/4/5 falsely flagged every champion/giant that spawned near the
+    character. We require either rarity==6 OR an explicit name match."""
     if not mob:
         return False
-    unique_types = set(config.get('unique_types') or [3, 4, 5])
-    t = mob.get('type')
+    unique_types = set(config.get('unique_types') or [6])
     r = mob.get('rarity')
-    if (t in unique_types) or (r in unique_types):
+    if r in unique_types:
         return True
     name = str(mob.get('name') or mob.get('servername') or '').lower()
+    if not name:
+        return False
     for kw in config.get('unique_keywords') or []:
         if kw and kw.lower() in name:
+            return True
+    for nm in config.get('unique_names') or []:
+        if nm and nm.lower() in name:
             return True
     return False
 
@@ -849,7 +866,7 @@ def btnTest_clicked():
 def btnTestUnique_clicked():
     _send_q.put({'type': 'unique', 'text': 'Unique spawned: Tiger Girl (test)',
                  'extras': [('Mob', 'Tiger Girl'), ('HP', '120000'),
-                            ('Type', 4), ('Rarity', 4), ('Distance', '37m')]})
+                            ('Type', 1), ('Rarity', 6), ('Distance', '37m')]})
     _set_status('unique test queued')
 
 

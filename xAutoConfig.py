@@ -142,7 +142,7 @@ _try_style_github(btnGithub)
 
 # ______________________________ UI logic ______________________________ #
 
-def noop():
+def noop(*args, **kwargs):
 	pass
 
 def _set_status(msg):

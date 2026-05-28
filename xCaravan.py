@@ -51,7 +51,8 @@ QtBind.createLabel(gui, '🚛  xCaravan  —  Auto Caravan  ' + ('═' * 80), 12
 chkEnabled = QtBind.createCheckBox(gui, 'cbx_enabled_clicked', '🟢  ENABLE  PLUGIN  🟢', 12, 30)
 chkStartBotAfter = QtBind.createCheckBox(gui, 'cbx_start_bot_after_clicked', '🤖 Start bot after', 200, 30)
 chkUnequipAfter = QtBind.createCheckBox(gui, 'cbx_unequip_after_clicked', '🧺 Unequip after', 345, 30)
-chkReverseAfter = QtBind.createCheckBox(gui, 'cbx_reverse_after_clicked', '🌀 Reverse to recall after', 480, 30)
+chkReverseAfter = QtBind.createCheckBox(gui, 'cbx_reverse_after_clicked', '🌀 Recall after', 480, 30)
+chkReverseDeath = QtBind.createCheckBox(gui, 'cbx_reverse_death_clicked', '💀 Death after', 595, 30)
 
 QtBind.createLabel(gui, '🎭 Role:', 12, 56)
 chkRouteThief = QtBind.createCheckBox(gui, 'cbx_route_thief_clicked', '⚔ Thief', 65, 54)
@@ -602,6 +603,7 @@ DEFAULT_CONFIG = {
     'start_bot_after': True,
     'unequip_after': True,
     'reverse_after': False,
+    'reverse_after_death': False,
     'route_mode': 'Thief',
     'verbose_logs': False,
     'box_name': DEFAULT_BOX_NAME,
@@ -1124,6 +1126,7 @@ def _read_gui():
     config['start_bot_after'] = QtBind.isChecked(gui, chkStartBotAfter)
     config['unequip_after'] = QtBind.isChecked(gui, chkUnequipAfter)
     config['reverse_after'] = QtBind.isChecked(gui, chkReverseAfter)
+    config['reverse_after_death'] = QtBind.isChecked(gui, chkReverseDeath)
     if QtBind.isChecked(gui, chkRouteTrader):
         config['route_mode'] = 'Trader'
     elif QtBind.isChecked(gui, chkRouteHunter):
@@ -1144,6 +1147,7 @@ def _write_gui():
     QtBind.setChecked(gui, chkStartBotAfter, bool(config.get('start_bot_after', True)))
     QtBind.setChecked(gui, chkUnequipAfter, bool(config.get('unequip_after', True)))
     QtBind.setChecked(gui, chkReverseAfter, bool(config.get('reverse_after', False)))
+    QtBind.setChecked(gui, chkReverseDeath, bool(config.get('reverse_after_death', False)))
     mode = config.get('route_mode', 'Thief')
     QtBind.setChecked(gui, chkRouteThief, mode == 'Thief')
     QtBind.setChecked(gui, chkRouteHunter, mode == 'Hunter')
@@ -1631,7 +1635,7 @@ def _route_script():
         script = script + '\n'
     else:
         script = ROUTE_SCRIPT
-    if config.get('reverse_after', False):
+    if config.get('reverse_after', False) or config.get('reverse_after_death', False):
         script = script.replace('use,returnscroll\n', '').replace('use,returnscroll', '')
     return script
 
@@ -1677,8 +1681,9 @@ def _fire_reverse_return():
 
 
 def _execute_reverse_return():
+    rev_type = 1 if config.get('reverse_after_death', False) else 0
     try:
-        ok = reverse_return(0, '')
+        ok = reverse_return(rev_type, '')
     except Exception as ex:
         _log('Reverse return scroll failed: %s' % ex, True)
         ok = False
@@ -1954,7 +1959,7 @@ def _run_route_script():
         start_script(script)
         _set_state('route_running')
         _log('Caravan script started.', True)
-        if config.get('reverse_after', False):
+        if config.get('reverse_after', False) or config.get('reverse_after_death', False):
             reverse_pending = True
             reverse_last_pos = None
             reverse_stationary_since = 0
@@ -1969,7 +1974,7 @@ def _finish_route():
     _stats_record_run_complete()
     _pouch_reset_after_trade()
     count = _box_count()
-    if config.get('reverse_after', False):
+    if config.get('reverse_after', False) or config.get('reverse_after_death', False):
         # Reverse return was already issued by _fire_reverse_return after the
         # transport was killed; just resume the bot in place once teleport landed.
         _log('Reverse return: %d boxes left. Resuming bot at recall point.' % count, True)
@@ -2119,6 +2124,17 @@ def cbx_unequip_after_clicked(checked=None):
 
 def cbx_reverse_after_clicked(checked=None):
     config['reverse_after'] = QtBind.isChecked(gui, chkReverseAfter)
+    if config['reverse_after']:
+        config['reverse_after_death'] = False
+        QtBind.setChecked(gui, chkReverseDeath, False)
+    _save_config()
+
+
+def cbx_reverse_death_clicked(checked=None):
+    config['reverse_after_death'] = QtBind.isChecked(gui, chkReverseDeath)
+    if config['reverse_after_death']:
+        config['reverse_after'] = False
+        QtBind.setChecked(gui, chkReverseAfter, False)
     _save_config()
 
 
