@@ -699,6 +699,27 @@ def joined_game():
 
 # Track messages this bot sent via the script `chat` command, so we don't act on our own echoes
 _selfSentChat = []
+# Cap the dedup list. Echoes return within a tick or two, so only the most
+# recent entries can ever match. Unmatched entries (e.g. union chat, whose
+# echo arrives with the guild prefix stripped) would otherwise accumulate
+# forever — a slow memory leak. Keep just the last N.
+_MAX_SELF_SENT = 32
+
+def _remember_self_sent(key):
+	_selfSentChat.append(key)
+	if len(_selfSentChat) > _MAX_SELF_SENT:
+		del _selfSentChat[:-_MAX_SELF_SENT]
+
+# Throttle the "Following ..." log so it doesn't spam the log file at 2 Hz
+# while following. Movement itself is unchanged — only the log line is rate-limited.
+_last_follow_log_at = 0.0
+
+def _follow_log(message):
+	global _last_follow_log_at
+	now = time.time()
+	if now - _last_follow_log_at >= 5.0:
+		_last_follow_log_at = now
+		log(message)
 
 # All chat messages received are sent to this function
 def handle_chat(t,player,msg):
@@ -1097,11 +1118,11 @@ def event_loop():
 				y_unit = (player['y'] - p['y']) / playerDistance
 				# distance to move
 				movementDistance = playerDistance-followDistance
-				log("Following "+followPlayer+"...")
+				_follow_log("Following "+followPlayer+"...")
 				move_to(movementDistance * x_unit + p['x'],movementDistance * y_unit + p['y'],0)
 		else:
 			# Avoid negative numbers
-			log("Following "+followPlayer+"...")
+			_follow_log("Following "+followPlayer+"...")
 			move_to(player['x'],player['y'],0)
 
 # ______________________________ Script Commands ______________________________ #
@@ -1125,22 +1146,22 @@ def chat(arguments):
 	try:
 		body = ','.join(args[1:]).strip()
 		if t == 'all':
-			_selfSentChat.append((typeIdMap['all'], body))
+			_remember_self_sent((typeIdMap['all'], body))
 			phBotChat.All(body)
 		elif t == 'party':
-			_selfSentChat.append((typeIdMap['party'], body))
+			_remember_self_sent((typeIdMap['party'], body))
 			phBotChat.Party(body)
 		elif t == 'guild':
-			_selfSentChat.append((typeIdMap['guild'], body))
+			_remember_self_sent((typeIdMap['guild'], body))
 			phBotChat.Guild(body)
 		elif t == 'union':
-			_selfSentChat.append((typeIdMap['union'], body))
+			_remember_self_sent((typeIdMap['union'], body))
 			phBotChat.Union(body)
 		elif t == 'stall':
-			_selfSentChat.append((typeIdMap['stall'], body))
+			_remember_self_sent((typeIdMap['stall'], body))
 			phBotChat.Stall(body)
 		elif t == 'global':
-			_selfSentChat.append((typeIdMap['global'], body))
+			_remember_self_sent((typeIdMap['global'], body))
 			phBotChat.Global(body)
 		elif t == 'private' or t == 'note':
 			if len(args) < 3:

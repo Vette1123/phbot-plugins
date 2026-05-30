@@ -103,13 +103,19 @@ def is_black_stone(servername):
     except:
         return False
 
+_worker_thread = None
+
 def start_worker_thread():
-    try:
-        threading.Thread(target=craft_loop, daemon=True).start()
-    except:
-        t = threading.Thread(target=craft_loop)
-        t.daemon = True
-        t.start()
+    # Guard against a Stop-then-immediate-Start race spawning a second craft
+    # loop (which would double-inject packets). If the previous worker is still
+    # alive, isRunning has just been set True again so it keeps running as the
+    # single worker — don't start another.
+    global _worker_thread
+    if _worker_thread is not None and _worker_thread.is_alive():
+        return
+    t = threading.Thread(target=craft_loop, daemon=True)
+    _worker_thread = t
+    t.start()
 
 # ______________________________ Main Process ______________________________ #
 

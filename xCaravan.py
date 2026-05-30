@@ -671,7 +671,6 @@ stats_baseline_gold = None
 stats_baseline_stones = None
 stats_baseline_arena = None
 stats_last_ui_update = 0
-stats_fill_samples = []
 stats_last_seen_count = -1
 stats_last_empty_at = 0
 stats_known_fill_ms = 0
@@ -848,22 +847,11 @@ def _log_path():
 
 
 def _log_to_file(message):
-    global _log_file_warned
-    try:
-        path = _log_path()
-        stamp = time.strftime('%Y-%m-%d %H:%M:%S')
-        line = '[%s] %s\n' % (stamp, message)
-        mode = 'a' if path in _log_file_truncated else 'w'
-        with open(path, mode, encoding='utf-8') as f:
-            f.write(line)
-        _log_file_truncated.add(path)
-    except Exception as ex:
-        if not _log_file_warned:
-            _log_file_warned = True
-            try:
-                _phbot_log('[%s] Dedicated log write failed: %s' % (pName, ex))
-            except Exception:
-                pass
+    # Dedicated xCaravan log file disabled: it appended for the whole session
+    # and grew unbounded. No file is created or written anymore. Forced and
+    # verbose messages still appear in phBot's main log via _phbot_log; the
+    # non-verbose debug trace that used to go only to this file is simply dropped.
+    return
 
 
 def log(message):
@@ -1133,10 +1121,10 @@ def _read_gui():
         config['route_mode'] = 'Hunter'
     else:
         config['route_mode'] = 'Thief'
-    config['box_name'] = QtBind.text(gui, txtBoxName).strip() or DEFAULT_BOX_NAME
+    config['box_name'] = str(QtBind.text(gui, txtBoxName)).strip() or DEFAULT_BOX_NAME
     config['box_limit'] = _safe_int(QtBind.text(gui, txtBoxLimit), 1, 1)
     config['scan_ms'] = _safe_int(QtBind.text(gui, txtScanMs), 30000, 1000)
-    config['suit_filter'] = QtBind.text(gui, txtSuitFilter).strip() or 'Trader'
+    config['suit_filter'] = str(QtBind.text(gui, txtSuitFilter)).strip() or 'Trader'
     config['final_box_min'] = _safe_int(QtBind.text(gui, txtFinalBoxMin), 20, 1)
     config['final_teleports'] = _safe_int(QtBind.text(gui, txtFinalTeleports), 3, 1)
     config['action_ms'] = _safe_int(QtBind.text(gui, txtActionMs), 3500, 500)
@@ -1458,14 +1446,24 @@ def _pouch_reset_after_trade():
     _pouch_high_water['goods'] = 0
 
 
+_last_pouch_poke_at = 0.0
+_POUCH_POKE_INTERVAL = 1.0  # seconds; throttle the per-packet pouch read
+
+
 def handle_joymax(opcode, data):
-    # Real-time pouch refresh. Any packet related to specialty goods /
-    # inventory updates invalidates our cached high-water-mark check and pokes
-    # the event loop to re-read on the next tick. We don't try to identify
-    # specific opcodes — every Joymax frame is cheap to handle and pouches
-    # rarely change outside of looting, so re-reading is safe.
-    # Poke phBot to refresh its pouch cache. The actual UI redraw happens in
-    # event_loop on the main thread (Qt isn't safe to touch from this thread).
+    # Real-time pouch refresh. We poke phBot to refresh its pouch cache so the
+    # high-water mark stays current. This used to run on EVERY Joymax frame —
+    # hundreds per second in combat — calling get_job_pouch() and iterating the
+    # whole pouch each time, which burned CPU for no benefit (the high-water
+    # value is only sampled, never read on the hot path). Throttle to at most
+    # once per second: the pouch only changes on looting, and event_loop already
+    # re-reads it on its own cadence. The actual UI redraw happens in event_loop
+    # on the main thread (Qt isn't safe to touch from this thread).
+    global _last_pouch_poke_at
+    now = time.time()
+    if now - _last_pouch_poke_at < _POUCH_POKE_INTERVAL:
+        return True
+    _last_pouch_poke_at = now
     try:
         fn = globals().get('get_job_pouch')
         if callable(fn):
