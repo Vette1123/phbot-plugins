@@ -9,7 +9,8 @@ Personal collection of [phBot](https://www.elitepvpers.com/forum/sro-pserver-bot
 | [`xControl.py`](./xControl.py) | Control a party of bots via in-game chat. A designated leader types commands and every bot running this plugin reacts (start/stop, teleport, follow, equip, sort inventory, party chat, packet injection, and more). |
 | [`xCaravan.py`](./xCaravan.py) | Auto-Caravan / job route runner with full UI dashboard. Watches box count, equips/unequips the job suit, casts the Caravan Bugle, walks a Thief / Hunter / Trader route, settles trading, terminates transport, and either returns home or reverse-recalls to the start point. Includes live stats panel (runs, goods/h, stones/arena/gold per hour, ETA to next run), trader trade-lockdown safety, training-area gate, and chat-command control via `xControl`. Per-character config. |
 | [`xAutoConfig.py`](./xAutoConfig.py) | Per-character profile/config switcher. Auto-loads the right phBot config, training script, and DB3 sidecar files when a character logs in, so multi-account setups boot into the correct profile without manual swaps. |
-| [`xMagicPop.py`](./xMagicPop.py) | Magic Pop spinner. Loops Magic Pop "play" packets across every Magic Pop item in your inventory (Flag / Devil's Spirit S / Angel's Spirit S, M/F), with burst or timed delay and a live status panel. |
+| [`xMagicPop.py`](./xMagicPop.py) | Magic Pop spinner. Loops Magic Pop "play" packets across every Magic Pop item in your inventory (Flag / Devil's Spirit S / Angel's Spirit S, M/F, plus a separate PREM pop list), with burst or timed delay and a live status panel. |
+| [`xJupiter.py`](./xJupiter.py) | Jupiter Temple unique hunter. Cycles The Earth / Yuno / Jupiter / Baal / Zieliaxe / Babilion rooms via entry/exit teleport packets and embedded walk scripts, attacks the unique, waits, walks back out, and moves to the next target. Search and Standby modes, spawn/death packet monitor with per-target kill counters and queue, auto-use of Honor / Random Wheel scrolls (including pulling them out of the grab pet), and a live status dashboard. |
 | [`xShining.py`](./xShining.py) | iSRO fully-automatic lightstone crafting. Finds Blue/Black Stone anywhere in inventory and loops the recipe packet until depleted, with configurable speed and a broken-stones counter. |
 | [`xPacketTool.py`](./xPacketTool.py) | Packet inspector / injector. Send raw client or server packets, with a filter list to log only the opcodes you care about. |
 | [`xNotify.py`](./xNotify.py) | Push live status alerts to **Telegram** and/or **Discord** — death, bot stopped, attacked, out of HP/MP potions, PMs, global/notice chat, unique sightings, and xCaravan trade start/settle. Per-event toggles, throttling, and a shared config read by every bot process. Each alert is labelled `[game • character]` so you know which bot fired it. |
@@ -238,11 +239,12 @@ Magic Pop spinner. Sends Magic Pop "play" packets (`C->S 0x7118`) for every Magi
 
 ### Usage
 
-1. **Magic Pop Type** — pick the booth you're at: `Flag (M) / Flag (F) / Devil's Spirit S grade (M) / Devil's Spirit S grade (F) / Angel's Spirit S grade (M) / Angel's Spirit S grade (F)`.
-2. **Delay (sec)** — `0` means **burst mode** (~15 sends per event tick, as fast as the script engine). Set a positive number for a steady one-per-interval send.
-3. **Stop after cycles** — `0` = forever, otherwise stops after N full passes over your inventory.
-4. **Only play on Magic Pop items** — when checked (default), the loop skips empty slots and any non-Magic-Pop items. Matches items whose `servername` contains `MAGIC_POP`.
-5. Click **Refresh Inventory** if you just grabbed/dropped items, then **START**. The right-hand list shows every slot in the Magic Pop range; rows marked `[POP]` are the ones that will be played.
+1. **Normal Pop Type** — pick the booth you're at: `Flag (M) / Flag (F) / Devil's Spirit S grade (M) / Devil's Spirit S grade (F) / Angel's Spirit S grade (M) / Angel's Spirit S grade (F) / Shaolin Monk Dress (F) / Shaolin Monk Hat (F) / Hussaar Dress (F)`.
+2. **PREM Pop Type** + **Use PREM pop list** — premium pops use a separate type-byte list and prem byte `0x01`. Tick the checkbox to spin from the PREM list instead of the normal one. (Only `Angel's Spirit S grade (F)` has a capture-verified PREM type byte so far; the rest are carried over unverified — capture with `xPacketTool` to confirm.)
+3. **Delay (sec)** — `0` means **burst mode** (~15 sends per event tick, as fast as the script engine). Set a positive number for a steady one-per-interval send.
+4. **Stop after cycles** — `0` = forever, otherwise stops after N full passes over your inventory.
+5. **Only play on Magic Pop items** — when checked (default), the loop skips empty slots and any non-Magic-Pop items. Matches items whose `servername` contains `MAGIC_POP`.
+6. Click **Refresh Inventory** if you just grabbed/dropped items, then **START**. The right-hand list shows every slot in the Magic Pop range; rows marked `[POP]` are the ones that will be played.
 
 ### Buttons
 
@@ -258,10 +260,10 @@ Magic Pop spinner. Sends Magic Pop "play" packets (`C->S 0x7118`) for every Magi
 
 ```
 opcode  : 0x7118
-payload : F5 05 00 00  <type:1>  00 00 00  <slot:1>  00
+payload : F5 05 00 00  <type:1>  00 00 00  <slot:1>  <prem:1>
 ```
 
-`<type>` is `01/04/05/06/07/08` (Flag M/F, Devil M/F, Angel M/F). `<slot>` is the inventory slot byte.
+`<type>` is the pop type byte (e.g. `01/04/05/06/07/08` for Flag M/F, Devil M/F, Angel M/F on the normal list). `<slot>` is the inventory slot byte. `<prem>` is `00` for a normal pop, `01` for a premium pop (premium uses its own type bytes, e.g. `CD` = Angel's Spirit S grade (F)).
 
 ---
 
@@ -412,7 +414,7 @@ except Exception:
 
 - All plugins maintained by **Gado** — [github.com/Vette1123](https://github.com/Vette1123)
 - `xControl`, `xAutoConfig`, and `xPacketTool` originally by [JellyBitz](https://github.com/JellyBitz/phBot-xPlugins); extended, rewritten, and maintained here by Gado.
-- `xCaravan`, `xMagicPop`, `xShining`, `xNotify`, `xShadowDungeon`, `xSpeedSpear` written by Gado.
+- `xCaravan`, `xMagicPop`, `xShining`, `xNotify`, `xShadowDungeon`, `xSpeedSpear`, `xJupiter` written by Gado.
 
 ## License
 

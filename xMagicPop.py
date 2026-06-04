@@ -28,26 +28,42 @@ def _try_style_github(btn):
                 pass
 
 pName = 'xMagicPop'
-pVersion = '2.0.0'
+pVersion = '2.1.0'
 pAuthor = 'Vette1123 (Gado)'
 pUrl = 'https://raw.githubusercontent.com/Vette1123/phbot-plugins/main/xMagicPop.py'
 # GitHub: https://github.com/Vette1123
 
 # ============================================================
 # Magic Pop loop (C->S 0x7118)
-# Payload: F5 05 00 00  <type:1> 00 00 00  <slot:1> 00
+# Payload: F5 05 00 00  <type:1> 00 00 00  <slot:1> <prem:1>
+# prem byte: 0x00 = normal pop, 0x01 = premium pop
 # ============================================================
 OPCODE = 0x7118
 ENCRYPTED = False
 
-TYPES = [
-    ("Flag (M)",                  0x01),
-    ("Flag (F)",                  0x04),
-    ("Devil's Spirit S grade (M)", 0x05),
-    ("Devil's Spirit S grade (F)", 0x06),
-    ("Angel's Spirit S grade (M)", 0x07),
-    ("Angel's Spirit S grade (F)", 0x08),
+# (name, type_byte, prem_byte)
+NORMAL_TYPES = [
+    ("Flag (M)",                   0x01, 0x00),
+    ("Flag (F)",                   0x04, 0x00),
+    ("Devil's Spirit S grade (M)", 0x05, 0x00),
+    ("Devil's Spirit S grade (F)", 0x06, 0x00),
+    ("Angel's Spirit S grade (M)", 0x07, 0x00),
+    ("Angel's Spirit S grade (F)", 0x08, 0x00),
+    ("Shaolin Monk Dress (F)",     0x42, 0x00),
+    ("Shaolin Monk Hat (F)",       0x43, 0x00),
+    ("Hussaar Dress (F)",          0x4A, 0x00),
 ]
+
+# Premium pop list (prem byte = 0x01).
+# Captured: F5 05 00 00 CD 00 00 00 0E 01 -> Angel's Spirit S grade (F) = 0xCD.
+# Verified prem type bytes go here; the normal items are appended below with
+# prem byte 0x01, skipping any name already verified (type bytes unverified
+# for prem - capture to confirm).
+PREM_TYPES = [
+    ("Angel's Spirit S grade (F)", 0xCD, 0x01),
+]
+PREM_TYPES += [(name, tb, 0x01) for name, tb, _ in NORMAL_TYPES
+               if name not in [n for n, _, _ in PREM_TYPES]]
 
 # Inventory slot bytes to spin on (slots 0x0D - 0x69, full magic pop range).
 SLOTS = [
@@ -90,39 +106,52 @@ _PAD = ' ' * 80
 # --- LEFT: Settings ---
 QtBind.createLabel(gui, '--- Settings ---', 12, 8)
 
-QtBind.createLabel(gui, 'Magic Pop Type:', 12, 32)
+QtBind.createLabel(gui, 'Normal Pop Type:', 12, 32)
 combo_type = QtBind.createCombobox(gui, 130, 29, 230, 22)
-for name, _ in TYPES:
-    QtBind.append(gui, combo_type, name)
+for t in NORMAL_TYPES:
+    QtBind.append(gui, combo_type, t[0])
 try:
     QtBind.setIndex(gui, combo_type, 0)
 except Exception:
     pass
 
-QtBind.createLabel(gui, 'Delay (sec):', 12, 60)
-txt_delay = QtBind.createLineEdit(gui, '0', 130, 57, 70, 22)
+QtBind.createLabel(gui, 'PREM Pop Type:', 12, 60)
+combo_prem = QtBind.createCombobox(gui, 130, 57, 230, 22)
+for t in PREM_TYPES:
+    QtBind.append(gui, combo_prem, t[0])
+try:
+    QtBind.setIndex(gui, combo_prem, 0)
+except Exception:
+    pass
 
-QtBind.createLabel(gui, 'Stop after cycles:', 12, 88)
-txt_max_cycles = QtBind.createLineEdit(gui, '0', 130, 85, 70, 22)
-QtBind.createLabel(gui, '(0 = forever)', 210, 88)
+cbx_use_prem = QtBind.createCheckBox(gui, 'cbx_use_prem_clicked',
+                                     'Use PREM pop list', 12, 86)
+use_prem = False
+
+QtBind.createLabel(gui, 'Delay (sec):', 12, 114)
+txt_delay = QtBind.createLineEdit(gui, '0', 130, 111, 70, 22)
+
+QtBind.createLabel(gui, 'Stop after cycles:', 12, 142)
+txt_max_cycles = QtBind.createLineEdit(gui, '0', 130, 139, 70, 22)
+QtBind.createLabel(gui, '(0 = forever)', 210, 142)
 
 cbx_magic_only = QtBind.createCheckBox(gui, 'cbx_magic_only_clicked',
-                                       'Only play on Magic Pop items', 12, 114)
+                                       'Only play on Magic Pop items', 12, 168)
 QtBind.setChecked(gui, cbx_magic_only, True)
 magic_only = True
 
 # --- LEFT: Controls ---
-QtBind.createLabel(gui, '--- Controls ---', 12, 146)
-QtBind.createButton(gui, 'btn_start',       '  START  ',  12, 168)
-QtBind.createButton(gui, 'btn_stop',        '  STOP   ',  92, 168)
-QtBind.createButton(gui, 'btn_send_once',   ' SEND ONE ', 172, 168)
-QtBind.createButton(gui, 'btn_reset',       '  RESET  ', 268, 168)
-QtBind.createButton(gui, 'btn_refresh_inv', '  Refresh Inventory  ', 12, 200)
+QtBind.createLabel(gui, '--- Controls ---', 12, 198)
+QtBind.createButton(gui, 'btn_start',       '  START  ',  12, 220)
+QtBind.createButton(gui, 'btn_stop',        '  STOP   ',  92, 220)
+QtBind.createButton(gui, 'btn_send_once',   ' SEND ONE ', 172, 220)
+QtBind.createButton(gui, 'btn_reset',       '  RESET  ', 268, 220)
+QtBind.createButton(gui, 'btn_refresh_inv', '  Refresh Inventory  ', 12, 252)
 
 # --- LEFT: Status (vertical stack) ---
-QtBind.createLabel(gui, '--- Status ---', 12, 238)
+QtBind.createLabel(gui, '--- Status ---', 12, 286)
 
-_y = 262
+_y = 308
 QtBind.createLabel(gui, 'State:',        12, _y)
 lbl_status   = QtBind.createLabel(gui, 'Idle' + _PAD,        110, _y)
 
@@ -139,7 +168,7 @@ QtBind.createLabel(gui, 'Progress:',     12, _y)
 lbl_progress = QtBind.createLabel(gui, 'Attempts 0  |  Cycles 0  |  Elapsed 0s' + _PAD, 110, _y)
 
 _y += 32
-btnGithub = QtBind.createButton(gui, 'btn_github_clicked', '  ⭐  (Gado) GitHub  ⭐  ', 175, 200)
+btnGithub = QtBind.createButton(gui, 'btn_github_clicked', '  ⭐  (Gado) GitHub  ⭐  ', 175, 252)
 _try_style_github(btnGithub)
 
 # --- RIGHT: Inventory ---
@@ -165,13 +194,15 @@ def set_label(label, text):
 
 
 def get_selected_type():
+    types = PREM_TYPES if use_prem else NORMAL_TYPES
+    combo = combo_prem if use_prem else combo_type
     try:
-        idx = QtBind.currentIndex(gui, combo_type)
-        if idx is None or idx < 0 or idx >= len(TYPES):
-            return TYPES[0]
-        return TYPES[idx]
+        idx = QtBind.currentIndex(gui, combo)
+        if idx is None or idx < 0 or idx >= len(types):
+            return types[0]
+        return types[idx]
     except Exception:
-        return TYPES[0]
+        return types[0]
 
 
 def get_delay_seconds():
@@ -197,6 +228,12 @@ def cbx_magic_only_clicked(checked):
     magic_only = checked
 
 
+def cbx_use_prem_clicked(checked):
+    global use_prem
+    use_prem = checked
+    logx('Pop list: %s' % ('PREM' if use_prem else 'Normal'))
+
+
 BURST_PER_TICK = 15  # max sends per event_loop call when delay <= 0
 
 
@@ -215,10 +252,10 @@ def payload_hex(data):
         return str(data)
 
 
-def make_payload(type_byte, slot_byte):
+def make_payload(type_byte, slot_byte, prem_byte=0x00):
     return bytearray([0xF5, 0x05, 0x00, 0x00,
                       type_byte, 0x00, 0x00, 0x00,
-                      slot_byte, 0x00])
+                      slot_byte, prem_byte])
 
 
 def _friendly_item_name(item):
@@ -346,8 +383,8 @@ def send_current_slot(quiet=False):
         set_label(lbl_status, 'No slots')
         return False
 
-    type_name, type_byte = get_selected_type()
-    data = make_payload(type_byte, sb)
+    type_name, type_byte, prem_byte = get_selected_type()
+    data = make_payload(type_byte, sb, prem_byte)
     try:
         inject_joymax(OPCODE, data, ENCRYPTED)
     except Exception as e:
@@ -357,7 +394,8 @@ def send_current_slot(quiet=False):
 
     attempts += 1
     last_send_time = time.time()
-    last_packet_text = '%s  -  Slot %d  -  %s' % (type_name, sb, slot_display(sb))
+    last_packet_text = '%s%s  -  Slot %d  -  %s' % (
+        '[PREM] ' if prem_byte else '', type_name, sb, slot_display(sb))
     if not quiet:
         logx('SENT %s' % last_packet_text)
     return True
