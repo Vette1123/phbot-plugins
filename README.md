@@ -17,7 +17,7 @@ Personal collection of [phBot](https://www.elitepvpers.com/forum/sro-pserver-bot
 | [`xShadow.py`](./xShadow.py) | Shadow Dungeon helper. Automates the shadow / job dungeon entry, NPC opens, item retrieval, and exit packet flow so the run completes hands-free. |
 | [`xSpeedSpear.py`](./xSpeedSpear.py) | Chinese spear imbue/speed animation-cancel helper. Presses your quickbar speed (1s cd) and imbue (20s cd) on a timer via Win32 `PostMessage` to the top-level game window only — no `keybd_event`, no child enumeration, no foreground stealing. 4 Hz tick, debounced autosave, cached lparam/hwnd. Configurable quickbar page (F1–F4) and slot positions (1–0). |
 
-## Installation
+## Adding the plugins to phBot
 
 1. Download the `.py` file of each plugin you want, or the whole repo as a ZIP (all plugins are free, MIT licensed).
 2. Copy the files into the `Plugins` folder inside your phBot folder.
