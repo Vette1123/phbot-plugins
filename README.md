@@ -416,11 +416,39 @@ except Exception:
 
 ---
 
+## Common questions
+
+### Are these phBot plugins free?
+
+Yes. Every plugin here is free and MIT licensed. phBot itself is a separate program with its own license.
+
+### Which plugin runs a party of bots, PvP included?
+
+`xControl`. A party leader types commands in chat and every bot running it reacts. `PROFILE PvP` loads a PvP profile on every bot at once, and `CAPE red` (or `gray`, `blue`, `white`, `yellow`, `off`) puts on the PvP cape. See the [command reference](#command-reference).
+
+### Is there a town or walk-script helper?
+
+`xControl` adds commands to phBot walk scripts (`.txt`): party chat, party invites, `wait_party` until everyone has joined, and `use_scroll` to read a return or reverse scroll by name. From chat, `RECALL Constantinople` sets the recall point at a town's portal. See [Script commands](#script-commands).
+
+### Is there a dungeon plugin?
+
+`xShadow` runs the Shadow / job dungeon: entry, the NPC steps, item retrieval and the exit, hands-free. It only starts the dungeon when your character is the party master. For uniques in Jupiter Temple, use `xJupiter`.
+
+### Can I write my own phBot plugin?
+
+A phBot plugin is a Python file in the `Plugins` folder. It imports phBot's `phBot` module for game data and packets and `QtBind` for its tab. Every plugin here is readable source and works as an example. `xPacketTool` shows which packet opcodes the game sends, and any plugin can send Telegram or Discord alerts through [xNotify](#for-other-plugins).
+
+### Does any plugin do quests automatically?
+
+No. None of these plugins accepts or turns in quests.
+
+---
+
 ## Credits
 
 - All plugins maintained by **Gado** — [github.com/Vette1123](https://github.com/Vette1123)
 - `xControl`, `xAutoConfig`, and `xPacketTool` originally by [JellyBitz](https://github.com/JellyBitz/phBot-xPlugins); extended, rewritten, and maintained here by Gado.
-- `xCaravan`, `xMagicPop`, `xShining`, `xNotify`, `xShadowDungeon`, `xSpeedSpear`, `xJupiter` written by Gado.
+- `xCaravan`, `xMagicPop`, `xShining`, `xNotify`, `xShadow`, `xSpeedSpear`, `xJupiter` written by Gado.
 
 ## License
 
