@@ -13,7 +13,7 @@ Personal collection of [phBot](https://www.elitepvpers.com/forum/sro-pserver-bot
 | [`xJupiter.py`](./xJupiter.py) | Jupiter Temple unique hunter. Cycles The Earth / Yuno / Jupiter / Baal / Zieliaxe / Babilion rooms via entry/exit teleport packets and embedded walk scripts, attacks the unique, waits, walks back out, and moves to the next target. Search and Standby modes, spawn/death packet monitor with per-target kill counters and queue, auto-use of Honor / Random Wheel scrolls (including pulling them out of the grab pet), and a live status dashboard. |
 | [`xShining.py`](./xShining.py) | iSRO fully-automatic lightstone crafting. Finds Blue/Black Stone anywhere in inventory and loops the recipe packet until depleted, with configurable speed and a broken-stones counter. |
 | [`xPacketTool.py`](./xPacketTool.py) | Packet inspector / injector. Send raw client or server packets, with a filter list to log only the opcodes you care about. |
-| [`xNotify.py`](./xNotify.py) | Push live status alerts to **Telegram** and/or **Discord** — death, bot stopped, attacked, out of HP/MP potions, PMs, global/notice chat, unique sightings, and xCaravan trade start/settle. Per-event toggles, throttling, and a shared config read by every bot process. Each alert is labelled `[game • character]` so you know which bot fired it. |
+| [`xNotify.py`](./xNotify.py) | Push live status alerts to **Telegram** and/or **Discord**: death, bot stopped, attacked, out of HP/MP potions, PMs, global/notice chat, unique sightings, and xCaravan trade start/settle. Per-event toggles, throttling, and a shared config read by every bot process. Each alert is labelled `[game • character]` so you know which bot fired it. |
 | [`xShadow.py`](./xShadow.py) | Shadow Dungeon helper. Automates the shadow / job dungeon entry, NPC opens, item retrieval, and exit packet flow so the run completes hands-free. |
 | [`xSpeedSpear.py`](./xSpeedSpear.py) | Chinese spear imbue/speed animation-cancel helper. Presses your quickbar speed (1s cd) and imbue (20s cd) on a timer via Win32 `PostMessage` to the top-level game window only — no `keybd_event`, no child enumeration, no foreground stealing. 4 Hz tick, debounced autosave, cached lparam/hwnd. Configurable quickbar page (F1–F4) and slot positions (1–0). |
 
@@ -160,13 +160,13 @@ Auto-Caravan controller with a live stats dashboard. Watches your pouch count, e
 
 ### Key features
 
-- **Live stats dashboard** — runs completed, goods/h, stones/h, arena coins/h, gold/h (all rates derived from completed-run deltas, not extrapolated samples), avg & best run time, ETA to next pouch-full, session uptime, and a `↻ Reset Counters` button.
-- **Trader trade-lockdown** — once the trader role starts injecting target-trade packets, the plugin freezes all other actions (no teleports, no NPCs, no stop/start, no reverse) until the settle packet completes. Hard timeout 90s. Keeps the script running through `terminate,transport` → `use,returnscroll` naturally.
-- **Armed gate** — plugin only auto-acts while the character is at the configured training area, so it stays passive when you're idling in town.
-- **Bot-running gate** — auto-trigger only fires while phBot is actually botting (`get_status()` non-empty). If the bot is stopped, the plugin sits in `idle · bot not running` and waits — start the bot from phBot's main UI (or via `xControl`'s `START` chat command) and the next scan tick picks up the route. Manual buttons (`🚀 START`, `📜 Run script`, `CARAVAN GO`) are not gated.
-- **Robust scanning** — scans continue across all non-route states (not just `idle`), with empty-inventory backoff and edge-detected immediate rescans.
-- **xControl chat integration** — `CARAVAN ON/OFF/STATUS/SCAN/GO` from a party leader (authorized via xControl's leader list).
-- **Sort inventory before reverse** — calls phBot's `sort_inventory()` to compact items before the recall.
+- **Live stats dashboard**: runs completed, goods/h, stones/h, arena coins/h, gold/h (all rates derived from completed-run deltas, not extrapolated samples), avg & best run time, ETA to next pouch-full, session uptime, and a `↻ Reset Counters` button.
+- **Trader trade-lockdown**: once the trader role starts injecting target-trade packets, the plugin freezes all other actions (no teleports, no NPCs, no stop/start, no reverse) until the settle packet completes. Hard timeout 90s. Keeps the script running through `terminate,transport` → `use,returnscroll`.
+- **Armed gate**: the plugin only auto-acts while the character is at the configured training area, so it stays passive when you're idling in town.
+- **Bot-running gate**: auto-trigger only fires while phBot is actually botting (`get_status()` non-empty). If the bot is stopped, the plugin sits in `idle · bot not running` and waits. Start the bot from phBot's main UI (or via `xControl`'s `START` chat command) and the next scan tick picks up the route. Manual buttons (`🚀 START`, `📜 Run script`, `CARAVAN GO`) are not gated.
+- **Scanning**: scans continue across all non-route states (not just `idle`), with empty-inventory backoff and edge-detected immediate rescans.
+- **xControl chat integration**: `CARAVAN ON/OFF/STATUS/SCAN/GO` from a party leader (authorized via xControl's leader list).
+- **Sort inventory before reverse**: calls phBot's `sort_inventory()` to compact items before the recall.
 
 ### UI fields
 
@@ -446,7 +446,7 @@ No. None of these plugins accepts or turns in quests.
 
 ## Credits
 
-- All plugins maintained by **Gado** — [github.com/Vette1123](https://github.com/Vette1123)
+- All plugins maintained by **Gado**: [github.com/Vette1123](https://github.com/Vette1123)
 - `xControl`, `xAutoConfig`, and `xPacketTool` originally by [JellyBitz](https://github.com/JellyBitz/phBot-xPlugins); extended, rewritten, and maintained here by Gado.
 - `xCaravan`, `xMagicPop`, `xShining`, `xNotify`, `xShadow`, `xSpeedSpear`, `xJupiter` written by Gado.
 
