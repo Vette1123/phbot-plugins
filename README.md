@@ -327,7 +327,7 @@ Configure once: all your bots share the same `xNotify.json` next to the plugin.
 | ✉️ PM | someone whispers you (sent immediately, no throttle) |
 | 📢 Global | global chat message |
 | 📜 Notice | server notice |
-| 👑 Unique | **any** unique monster (mob rarity type 8) that spawns in the bot's view — one alert per spawn — **plus** any global/notice whose text matches a unique keyword |
+| 👑 Unique | **any** unique monster (phBot mob rarity 6, the `unique_types` setting) that spawns in the bot's view — one alert per spawn — **plus** any global/notice whose text matches a unique keyword |
 | 📦 Trade start | xCaravan begins a trade run |
 | ✅ Trade settle | xCaravan completes/settles the target trade |
 
@@ -402,7 +402,7 @@ except Exception:
 
 ### Notes / verify on your server
 
-- **Uniques** are caught two ways: (1) any monster with phBot rarity `type == 8` that spawns
+- **Uniques** are caught two ways: (1) any monster with phBot rarity `6` (`unique_types`) that spawns
   in the bot's view fires one alert per spawn — works with no server announcement; and
   (2) any global/notice whose text matches a `unique_keywords` entry. Across many accounts,
   unique/global/notice alerts are deduped to a single message (see *Multi-account* above).
