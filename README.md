@@ -436,7 +436,7 @@ Yes. Every plugin here is free and MIT licensed. phBot itself is a separate prog
 
 ### Can I write my own phBot plugin?
 
-A phBot plugin is a Python file in the `Plugins` folder. It imports phBot's `phBot` module for game data and packets and `QtBind` for its tab. Every plugin here is readable source and works as an example. `xPacketTool` shows which packet opcodes the game sends, and any plugin can send Telegram or Discord alerts through [xNotify](#for-other-plugins).
+A phBot plugin is a Python file in the `Plugins` folder. It imports phBot's `phBot` module for game data and packets and `QtBind` for its tab. Every plugin here is readable source and works as an example. `xPacketTool` shows which packet opcodes the game sends, and any plugin can send Telegram or Discord alerts through [xNotify](#for-other-plugins). For a walkthrough of the hooks and API calls these plugins use, with a small working plugin, see [How to write a phBot plugin](https://www.mohamedgado.com/writing/phbot-plugin-python-api).
 
 ### Does any plugin do quests automatically?
 
